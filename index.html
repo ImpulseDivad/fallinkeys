@@ -99,6 +99,14 @@
         #hud span { font-size: 14px; font-weight: bold; }
         #scoreDisplay { color: #ffff00; }
         #comboDisplay { color: #00ff00; }
+        #practiceModeIndicator {
+            color: #ffd84a;
+            font-size: 11px;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            opacity: 0.95;
+            display: none;
+        }
         .hud-center {
             position: absolute;
             left: 50%;
@@ -437,6 +445,7 @@
             <span id="scoreDisplay">Score: 0</span>
             <div class="hud-center">
                 <span id="comboDisplay">Combo: 0x</span>
+                <span id="practiceModeIndicator">Practice</span>
                 <span id="livesDisplay" aria-label="Lives"></span>
             </div>
         </div>
@@ -477,6 +486,10 @@
             <button class="button level-btn" id="level2Btn" onclick="startLevel(2)">
                 Level 2: Green Hills
                 <span class="stars" id="level2Stars">&#9734;&#9734;&#9734;</span>
+            </button>
+            <button class="button level-btn" id="level3Btn" onclick="startLevel(3)">
+                Level 3: Hades Desert
+                <span class="stars" id="level3Stars">&#9734;&#9734;&#9734;</span>
             </button>
             <div class="upload-area" onclick="document.getElementById('midiFileInput').click()">+</div>
             <input type="file" id="midiFileInput" accept=".mid,.midi" onchange="handleMidiUpload(event)">
@@ -660,6 +673,7 @@
             settings: {
                 labelMode: 'keys', // 'keys', 'notes', 'straight'
                 cheatsEnabled: false,
+                practiceModeEnabled: false,
                 easyHoldEnabled: false,
                 blueHitEnabled: true,
                 soundEnabled: true,
@@ -678,7 +692,7 @@
             },
             
             // Level ratings
-            levelRatings: {1: 0, 2: 0},
+            levelRatings: {1: 0, 2: 0, 3: 0},
             
             // Tutorial
             tutorialStep: 0,
@@ -1771,7 +1785,7 @@
 
             if (isElectricTheme) {
                 const startY = BAR_Y - (0.6 + Math.random() * 1.1);
-                const boltCount = Math.max(2, KEY_PARTICLE_COUNT - 1);
+                const boltCount = Math.max(1, Math.floor(KEY_PARTICLE_COUNT * 0.5));
 
                 for (let i = 0; i < boltCount; i++) {
                     const spawnX = keyRect.x + (Math.random() * keyRect.width);
@@ -1783,11 +1797,12 @@
                         vy: -(2.2 + Math.random() * 2.0),
                         gravity: 0.05,
                         phase: Math.random() * Math.PI * 2,
-                        iconSize: 11 + Math.random() * 5,
+                        boltLength: 8 + Math.random() * 5,
+                        boltJitter: 1.4 + Math.random() * 1.7,
                         life: lifetime,
                         maxLife: lifetime,
                         color: '#ffe000',
-                        particleType: 'electric-icon'
+                        particleType: 'electric-bolt'
                     });
                 }
 
@@ -1913,7 +1928,7 @@
                     particle.vy -= 0.005;
                     particle.vy += particle.gravity || 0.01;
                     particle.vx *= 0.97;
-                } else if (particle.particleType === 'electric-icon') {
+                } else if (particle.particleType === 'electric-bolt') {
                     particle.vy += particle.gravity || 0.03;
                     particle.vx *= 0.985;
                 } else if (particle.particleType === 'electric-spark') {
@@ -1999,20 +2014,22 @@
                     continue;
                 }
 
-                if (particle.particleType === 'electric-icon') {
+                if (particle.particleType === 'electric-bolt') {
                     const flash = 0.68 + (Math.sin((gameState.gameFrame * 0.6) + (particle.phase || 0)) * 0.32);
-                    const iconSize = particle.iconSize || 12;
-                    ctx.save();
-                    ctx.globalAlpha = Math.min(1, alpha * (0.72 + flash * 0.45));
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.font = `bold ${iconSize}px Segoe UI Emoji, Arial`;
-                    ctx.strokeStyle = '#ffb700';
-                    ctx.lineWidth = 1.1;
-                    ctx.strokeText('⚡', particle.x, particle.y);
-                    ctx.fillStyle = '#fff34a';
-                    ctx.fillText('⚡', particle.x, particle.y);
-                    ctx.restore();
+                    const boltLength = particle.boltLength || 10;
+                    const boltJitter = particle.boltJitter || 1.8;
+                    const x = particle.x;
+                    const y = particle.y;
+
+                    ctx.strokeStyle = '#ffd84a';
+                    ctx.lineWidth = 1.4;
+                    ctx.globalAlpha = Math.min(1, alpha * (0.7 + flash * 0.4));
+                    ctx.beginPath();
+                    ctx.moveTo(x - (boltJitter * 0.6), y - (boltLength * 0.55));
+                    ctx.lineTo(x + boltJitter, y - (boltLength * 0.05));
+                    ctx.lineTo(x - (boltJitter * 0.9), y + (boltLength * 0.2));
+                    ctx.lineTo(x + (boltJitter * 0.5), y + (boltLength * 0.55));
+                    ctx.stroke();
                     continue;
                 }
 
@@ -2113,7 +2130,7 @@
         }
 
         function loseLife(column = null, flashFrames = WRONG_KEY_FLASH_FRAMES) {
-            if (gameState.state !== 'playing' || gameState.settings.cheatsEnabled || gameState.lives <= 0) return;
+            if (gameState.state !== 'playing' || gameState.settings.cheatsEnabled || gameState.settings.practiceModeEnabled || gameState.lives <= 0) return;
 
             const previousLives = gameState.lives;
             gameState.lives = Math.max(0, gameState.lives - 1);
@@ -2305,9 +2322,10 @@
         }
         
         function updateLevelStars() {
-            for (let i = 1; i <= 2; i++) {
+            for (let i = 1; i <= 3; i++) {
                 const stars = gameState.levelRatings[i] || 0;
                 const el = document.getElementById(`level${i}Stars`);
+                if (!el) continue;
                 el.textContent = '\u2605'.repeat(stars) + '\u2606'.repeat(3-stars);
             }
         }
@@ -2327,9 +2345,10 @@
         function setupLevelHoverBackgrounds() {
             const levelOneButton = document.getElementById('level1Btn');
             const levelTwoButton = document.getElementById('level2Btn');
+            const levelThreeButton = document.getElementById('level3Btn');
             const levelsOverlay = document.getElementById('levelsOverlay');
 
-            if (!levelOneButton || !levelTwoButton || !levelsOverlay) return;
+            if (!levelOneButton || !levelTwoButton || !levelThreeButton || !levelsOverlay) return;
 
             levelOneButton.addEventListener('mouseenter', () => setLevelMenuPreview('sunrise'));
             levelOneButton.addEventListener('focus', () => setLevelMenuPreview('sunrise'));
@@ -2337,10 +2356,15 @@
             levelTwoButton.addEventListener('mouseenter', () => setLevelMenuPreview('greenhills'));
             levelTwoButton.addEventListener('focus', () => setLevelMenuPreview('greenhills'));
 
+            levelThreeButton.addEventListener('mouseenter', () => setLevelMenuPreview(null));
+            levelThreeButton.addEventListener('focus', () => setLevelMenuPreview(null));
+
             levelOneButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
+            levelThreeButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelOneButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('blur', () => setLevelMenuPreview(null));
+            levelThreeButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelsOverlay.addEventListener('mouseleave', () => setLevelMenuPreview(null));
         }
 
@@ -2465,6 +2489,10 @@
                         <button class="button small" onclick="toggleCheats()">${gameState.settings.cheatsEnabled ? 'AAN' : 'UIT'}</button>
                     </div>
                     <div class="setting-row">
+                        <label>Practice Mode</label>
+                        <button class="button small" onclick="togglePracticeMode()">${gameState.settings.practiceModeEnabled ? 'ON' : 'OFF'}</button>
+                    </div>
+                    <div class="setting-row">
                         <label>Easy Hold</label>
                         <button class="button small" onclick="toggleEasyHold()">${gameState.settings.easyHoldEnabled ? 'ON' : 'OFF'}</button>
                     </div>
@@ -2523,6 +2551,11 @@
         
         function toggleCheats() {
             gameState.settings.cheatsEnabled = !gameState.settings.cheatsEnabled;
+            switchSettingsTab('gameplay');
+        }
+
+        function togglePracticeMode() {
+            gameState.settings.practiceModeEnabled = !gameState.settings.practiceModeEnabled;
             switchSettingsTab('gameplay');
         }
         
@@ -3153,11 +3186,8 @@
             // MIDI bestandsnamen voor elk level
             const levelFileNames = {
                 1: 'Sunrise.mid',
-                2: 'Green Hills.mid'
-            };
-            const levelNames = {
-                1: 'Sunrise.mid',
-                2: 'Green Hills.mid'
+                2: 'Green Hills.mid',
+                3: 'Hades Desert.mid'
             };
             
             const levelFileName = levelFileNames[levelNum];
@@ -3178,8 +3208,8 @@
                         gameState.levelNotes = result.notes;
                         gameState.useMidiSchedule = true;
                         lastMidiAnalysis = result.analysis;
-                        pendingLevelStart = levelNum;
-                        showMidiAnalysis(levelNames[levelNum]);
+                        pendingLevelStart = null;
+                        startLevelGame();
                     } else {
                         alert('Geen noten gevonden in MIDI bestand');
                         showElement('levelsOverlay');
@@ -3276,6 +3306,11 @@
             document.getElementById('hud').style.display = 'flex';
             document.getElementById('pauseBtn').style.display = 'block';
             document.getElementById('infoText').style.display = 'none';
+            gameState.lastJudgement = '';
+            gameState.judgementTimer = 0;
+            const judgementEl = document.getElementById('judgementDisplay');
+            judgementEl.textContent = '';
+            judgementEl.classList.remove('show', 'perfect', 'great', 'allright');
             document.getElementById('comboMultiplier').classList.remove('show', 'perfect-outline');
             renderLives();
             
@@ -3395,6 +3430,7 @@
             stopAllSounds();
             resetComboDisplay();
             const cheatsActive = !!gameState.settings.cheatsEnabled;
+            const noStarsMode = cheatsActive || !!gameState.settings.practiceModeEnabled;
             
             // Tutorial completion - show tutorial complete screen
             if (gameState.tutorialMode) {
@@ -3439,12 +3475,12 @@
                 stars = 0;
             }
 
-            if (cheatsActive) {
+            if (noStarsMode) {
                 stars = 0;
             }
             
             // Save rating (only if better than previous)
-            if (!cheatsActive && gameState.currentLevel && typeof gameState.currentLevel === 'number') {
+            if (!noStarsMode && gameState.currentLevel && typeof gameState.currentLevel === 'number') {
                 const currentBest = gameState.levelRatings[gameState.currentLevel] || 0;
                 if (stars > currentBest) {
                     gameState.levelRatings[gameState.currentLevel] = stars;
@@ -3453,8 +3489,8 @@
             
             // Show score info
             const percentStr = totalNotes > 0 ? Math.round((gameState.score / maxScore) * 100) : 0;
-            document.getElementById('levelScore').textContent = cheatsActive
-                ? `Score: ${gameState.score} / ${maxScore} (${percentStr}%) - Cheats actief: geen sterren`
+            document.getElementById('levelScore').textContent = noStarsMode
+                ? `Score: ${gameState.score} / ${maxScore} (${percentStr}%) - Cheats/Practice actief: geen sterren`
                 : `Score: ${gameState.score} / ${maxScore} (${percentStr}%)`;
             document.getElementById('levelStars').textContent = '\u2605'.repeat(stars) + '\u2606'.repeat(3 - stars);
             
@@ -3728,6 +3764,10 @@
             // Update HUD
             document.getElementById('scoreDisplay').textContent = `Score: ${gameState.score}`;
             document.getElementById('comboDisplay').textContent = `Combo: ${gameState.combo}x`;
+            const practiceIndicator = document.getElementById('practiceModeIndicator');
+            if (practiceIndicator) {
+                practiceIndicator.style.display = gameState.settings.practiceModeEnabled ? 'inline' : 'none';
+            }
             
             // Update judgement display
             if (gameState.judgementTimer > 0) {
@@ -3746,6 +3786,17 @@
             if (loopToken !== gameState.gameLoopToken) return;
             if (gameState.state !== 'playing') return;
             updateKeyParticles();
+
+            const isPracticeMode = gameState.settings.practiceModeEnabled && !gameState.settings.cheatsEnabled;
+            const blockingTile = isPracticeMode
+                ? gameState.tiles
+                    .filter(t => !t.hit && !t.missed && !t.holding && (t.y + t.height) >= BAR_Y)
+                    .sort((a, b) => (b.y + b.height) - (a.y + a.height))[0]
+                : null;
+
+            if (blockingTile) {
+                blockingTile.y = BAR_Y - blockingTile.height;
+            }
             
             // Handle short wrong-key flash on piano key
             if (gameState.missPending) {
@@ -3756,10 +3807,12 @@
                 }
             }
             
-            gameState.gameFrame++;
+            if (!blockingTile) {
+                gameState.gameFrame++;
+            }
             
             // Spawn tiles
-            if (gameState.useMidiSchedule && gameState.levelNotes.length > 0) {
+            if (!blockingTile && gameState.useMidiSchedule && gameState.levelNotes.length > 0) {
                 // MIDI/Level mode - spawn based on schedule
                 while (gameState.levelNoteIndex < gameState.levelNotes.length) {
                     const note = gameState.levelNotes[gameState.levelNoteIndex];
@@ -3780,7 +3833,7 @@
                     levelComplete();
                     return;
                 }
-            } else {
+            } else if (!blockingTile) {
                 // Free play mode - random spawning
                 gameState.spawnCounter++;
                 if (gameState.spawnCounter >= gameState.spawnRate) {
@@ -3796,7 +3849,14 @@
             // Update tiles
             for (let i = gameState.tiles.length - 1; i >= 0; i--) {
                 const tile = gameState.tiles[i];
-                tile.update();
+
+                if (blockingTile && !tile.hit && !tile.missed && !tile.holding) {
+                    if (tile === blockingTile) {
+                        tile.y = BAR_Y - tile.height;
+                    }
+                } else {
+                    tile.update();
+                }
                 
                 // Cheats: auto-hit tiles before they would miss (like Python version)
                 // This must come BEFORE the miss check!
