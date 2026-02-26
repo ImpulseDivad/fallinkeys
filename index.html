@@ -478,6 +478,10 @@
                 Level 2: Green Hills
                 <span class="stars" id="level2Stars">&#9734;&#9734;&#9734;</span>
             </button>
+            <button class="button level-btn" id="level3Btn" onclick="startLevel(3)">
+                Level 3: Hades Desert
+                <span class="stars" id="level3Stars">&#9734;&#9734;&#9734;</span>
+            </button>
             <div class="upload-area" onclick="document.getElementById('midiFileInput').click()">+</div>
             <input type="file" id="midiFileInput" accept=".mid,.midi" onchange="handleMidiUpload(event)">
             <p style="font-size: 12px; color: #888; margin-bottom: 10px;">Upload MIDI file</p>
@@ -678,7 +682,7 @@
             },
             
             // Level ratings
-            levelRatings: {1: 0, 2: 0},
+            levelRatings: {1: 0, 2: 0, 3: 0},
             
             // Tutorial
             tutorialStep: 0,
@@ -1771,7 +1775,7 @@
 
             if (isElectricTheme) {
                 const startY = BAR_Y - (0.6 + Math.random() * 1.1);
-                const boltCount = Math.max(2, KEY_PARTICLE_COUNT - 1);
+                const boltCount = Math.max(1, Math.floor(KEY_PARTICLE_COUNT * 0.5));
 
                 for (let i = 0; i < boltCount; i++) {
                     const spawnX = keyRect.x + (Math.random() * keyRect.width);
@@ -1783,11 +1787,12 @@
                         vy: -(2.2 + Math.random() * 2.0),
                         gravity: 0.05,
                         phase: Math.random() * Math.PI * 2,
-                        iconSize: 11 + Math.random() * 5,
+                        boltLength: 8 + Math.random() * 5,
+                        boltJitter: 1.4 + Math.random() * 1.7,
                         life: lifetime,
                         maxLife: lifetime,
                         color: '#ffe000',
-                        particleType: 'electric-icon'
+                        particleType: 'electric-bolt'
                     });
                 }
 
@@ -1913,7 +1918,7 @@
                     particle.vy -= 0.005;
                     particle.vy += particle.gravity || 0.01;
                     particle.vx *= 0.97;
-                } else if (particle.particleType === 'electric-icon') {
+                } else if (particle.particleType === 'electric-bolt') {
                     particle.vy += particle.gravity || 0.03;
                     particle.vx *= 0.985;
                 } else if (particle.particleType === 'electric-spark') {
@@ -1999,20 +2004,22 @@
                     continue;
                 }
 
-                if (particle.particleType === 'electric-icon') {
+                if (particle.particleType === 'electric-bolt') {
                     const flash = 0.68 + (Math.sin((gameState.gameFrame * 0.6) + (particle.phase || 0)) * 0.32);
-                    const iconSize = particle.iconSize || 12;
-                    ctx.save();
-                    ctx.globalAlpha = Math.min(1, alpha * (0.72 + flash * 0.45));
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.font = `bold ${iconSize}px Segoe UI Emoji, Arial`;
-                    ctx.strokeStyle = '#ffb700';
-                    ctx.lineWidth = 1.1;
-                    ctx.strokeText('⚡', particle.x, particle.y);
-                    ctx.fillStyle = '#fff34a';
-                    ctx.fillText('⚡', particle.x, particle.y);
-                    ctx.restore();
+                    const boltLength = particle.boltLength || 10;
+                    const boltJitter = particle.boltJitter || 1.8;
+                    const x = particle.x;
+                    const y = particle.y;
+
+                    ctx.strokeStyle = '#ffd84a';
+                    ctx.lineWidth = 1.4;
+                    ctx.globalAlpha = Math.min(1, alpha * (0.7 + flash * 0.4));
+                    ctx.beginPath();
+                    ctx.moveTo(x - (boltJitter * 0.6), y - (boltLength * 0.55));
+                    ctx.lineTo(x + boltJitter, y - (boltLength * 0.05));
+                    ctx.lineTo(x - (boltJitter * 0.9), y + (boltLength * 0.2));
+                    ctx.lineTo(x + (boltJitter * 0.5), y + (boltLength * 0.55));
+                    ctx.stroke();
                     continue;
                 }
 
@@ -2305,9 +2312,10 @@
         }
         
         function updateLevelStars() {
-            for (let i = 1; i <= 2; i++) {
+            for (let i = 1; i <= 3; i++) {
                 const stars = gameState.levelRatings[i] || 0;
                 const el = document.getElementById(`level${i}Stars`);
+                if (!el) continue;
                 el.textContent = '\u2605'.repeat(stars) + '\u2606'.repeat(3-stars);
             }
         }
@@ -2327,9 +2335,10 @@
         function setupLevelHoverBackgrounds() {
             const levelOneButton = document.getElementById('level1Btn');
             const levelTwoButton = document.getElementById('level2Btn');
+            const levelThreeButton = document.getElementById('level3Btn');
             const levelsOverlay = document.getElementById('levelsOverlay');
 
-            if (!levelOneButton || !levelTwoButton || !levelsOverlay) return;
+            if (!levelOneButton || !levelTwoButton || !levelThreeButton || !levelsOverlay) return;
 
             levelOneButton.addEventListener('mouseenter', () => setLevelMenuPreview('sunrise'));
             levelOneButton.addEventListener('focus', () => setLevelMenuPreview('sunrise'));
@@ -2337,10 +2346,15 @@
             levelTwoButton.addEventListener('mouseenter', () => setLevelMenuPreview('greenhills'));
             levelTwoButton.addEventListener('focus', () => setLevelMenuPreview('greenhills'));
 
+            levelThreeButton.addEventListener('mouseenter', () => setLevelMenuPreview(null));
+            levelThreeButton.addEventListener('focus', () => setLevelMenuPreview(null));
+
             levelOneButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
+            levelThreeButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelOneButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('blur', () => setLevelMenuPreview(null));
+            levelThreeButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelsOverlay.addEventListener('mouseleave', () => setLevelMenuPreview(null));
         }
 
@@ -3153,11 +3167,8 @@
             // MIDI bestandsnamen voor elk level
             const levelFileNames = {
                 1: 'Sunrise.mid',
-                2: 'Green Hills.mid'
-            };
-            const levelNames = {
-                1: 'Sunrise.mid',
-                2: 'Green Hills.mid'
+                2: 'Green Hills.mid',
+                3: 'Hades Desert.mid'
             };
             
             const levelFileName = levelFileNames[levelNum];
@@ -3178,8 +3189,8 @@
                         gameState.levelNotes = result.notes;
                         gameState.useMidiSchedule = true;
                         lastMidiAnalysis = result.analysis;
-                        pendingLevelStart = levelNum;
-                        showMidiAnalysis(levelNames[levelNum]);
+                        pendingLevelStart = null;
+                        startLevelGame();
                     } else {
                         alert('Geen noten gevonden in MIDI bestand');
                         showElement('levelsOverlay');
