@@ -1,0 +1,4081 @@
+﻿<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Fallin' Keys</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+            overflow: hidden;
+        }
+        #gameContainer {
+            width: 400px;
+            height: 600px;
+            border: 2px solid #444;
+            position: relative;
+            overflow: hidden;
+            background-color: #000;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        
+        /* Overlays */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.92);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            transition: opacity 0.3s;
+            overflow-x: hidden;
+        }
+        .overlay.hidden { display: none; }
+        .overlay h1 { font-size: 36px; margin-bottom: 30px; color: #ffff00; text-shadow: 0 0 20px rgba(255,255,0,0.5); }
+        .overlay h2 { font-size: 28px; margin-bottom: 20px; color: #ff4444; }
+        .overlay h3 { font-size: 22px; margin-bottom: 15px; color: #00aaff; }
+        
+        /* Buttons */
+        .button {
+            padding: 12px 30px;
+            font-size: 16px;
+            background: linear-gradient(180deg, #666 0%, #444 100%);
+            border: 2px solid #888;
+            color: white;
+            cursor: pointer;
+            margin: 8px;
+            border-radius: 5px;
+            transition: all 0.2s;
+            min-width: 150px;
+        }
+        .button:hover { background: linear-gradient(180deg, #888 0%, #666 100%); transform: scale(1.02); }
+        .button:active { transform: scale(0.98); }
+        .button.small { padding: 8px 20px; font-size: 14px; min-width: 100px; }
+        .button.pause-btn { min-width: 200px; }
+        .button.active { background: linear-gradient(180deg, #0066cc 0%, #004499 100%); border-color: #00aaff; }
+        .button:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 5px; margin-bottom: 20px; flex-wrap: wrap; justify-content: center; }
+        .tab { padding: 10px 15px; font-size: 13px; min-width: 80px; }
+        
+        /* Settings Tabs Grid */
+        .settings-tabs {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+            width: 220px;
+        }
+        .settings-tabs .tab {
+            min-width: unset;
+            width: 100%;
+            padding: 10px 8px;
+            font-size: 12px;
+            margin: 0;
+        }
+        
+        /* HUD */
+        #hud {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: flex-start;
+            align-items: center;
+            background: linear-gradient(180deg, rgba(0,0,0,0.8) 0%, transparent 100%);
+            z-index: 100;
+        }
+        #hud span { font-size: 14px; font-weight: bold; }
+        #scoreDisplay { color: #ffff00; }
+        #comboDisplay { color: #00ff00; }
+        .hud-center {
+            position: absolute;
+            left: 50%;
+            top: 8px;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            min-width: 110px;
+        }
+        #livesDisplay {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            min-width: 96px;
+            justify-content: center;
+        }
+        .life-heart {
+            display: inline-block;
+            font-size: 21px;
+            line-height: 1;
+            filter: drop-shadow(0 0 6px rgba(255, 60, 60, 0.5));
+            transform-origin: center;
+        }
+        .life-heart.empty {
+            opacity: 0.35;
+            filter: none;
+        }
+        .life-heart.break {
+            animation: heartBreak 0.42s ease-out;
+        }
+        @keyframes heartBreak {
+            0% { transform: scale(1) rotate(0deg); opacity: 1; }
+            35% { transform: scale(1.35) rotate(-10deg); opacity: 1; }
+            100% { transform: scale(0.72) rotate(12deg); opacity: 0.55; }
+        }
+        #judgementRow {
+            position: absolute;
+            top: 150px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            pointer-events: none;
+            z-index: 101;
+        }
+        #judgementDisplay {
+            font-size: 28px;
+            font-weight: bold;
+            text-shadow: 0 0 15px currentColor;
+            opacity: 0;
+            transition: opacity 0.15s;
+        }
+        #judgementDisplay.show { opacity: 1; }
+        #judgementDisplay.perfect { color: #00ffff; }
+        #judgementDisplay.great { color: #00ff00; }
+        #judgementDisplay.allright { color: #ffaa00; }
+        
+        /* Countdown overlay */
+        #countdownOverlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+        }
+        #countdownOverlay.hidden { display: none; }
+        #countdownText {
+            font-size: 120px;
+            font-weight: bold;
+            color: #ffff00;
+            text-shadow: 0 0 30px rgba(255,255,0,0.8);
+            animation: countPulse 0.5s ease-out;
+        }
+        @keyframes countPulse {
+            0% { transform: scale(1.5); opacity: 0; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes slideDown {
+            0% { transform: translateY(-50px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes levelCompleteFadeIn {
+            0% { opacity: 0; transform: translateY(10px) scale(0.98); }
+            100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        #levelCompleteOverlay.fade-in {
+            animation: levelCompleteFadeIn 0.38s ease-out;
+        }
+        
+        /* Combo multiplier display */
+        #comboMultiplier {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ff00ff;
+            text-shadow: 0 0 15px rgba(255,0,255,0.8);
+            background: linear-gradient(180deg, #00c6ff 0%, #0089d8 100%);
+            border: 2px solid #7fdcff;
+            border-radius: 999px;
+            padding: 4px 10px;
+            box-shadow: 0 0 14px rgba(0, 170, 255, 0.45);
+            opacity: 0;
+            transform: scale(0.88);
+            transition: opacity 0.16s, transform 0.16s;
+        }
+        #comboMultiplier.show { opacity: 1; transform: scale(1); }
+        #comboMultiplier.perfect-outline {
+            -webkit-text-stroke: 1.2px #ffffff;
+            paint-order: stroke fill;
+            text-shadow: 0 0 2px rgba(255, 255, 255, 0.9), 0 0 12px rgba(255, 0, 255, 0.85);
+        }
+        #comboMultiplier.rise { animation: multiplierRise 0.26s ease-out; }
+        @keyframes multiplierRise {
+            0% { transform: scale(0.85); }
+            55% { transform: scale(1.18); }
+            100% { transform: scale(1); }
+        }
+        
+        /* Info text */
+        .info-text {
+            position: absolute;
+            bottom: 5px;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            color: #666;
+            z-index: 50;
+        }
+        
+        /* Settings/Shop content */
+        .settings-content {
+            width: 90%;
+            max-height: 350px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 10px;
+            word-break: break-word;
+        }
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #333;
+        }
+        .setting-row label { font-size: 14px; }
+        
+        /* Level buttons */
+        .level-btn {
+            width: 280px;
+            padding: 15px;
+            margin: 10px 0;
+            text-align: left;
+            position: relative;
+        }
+        .level-btn .stars {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #ffaa00;
+        }
+
+        #levelsOverlay {
+            background:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.7) 100%),
+                linear-gradient(180deg, #1d2942 0%, #14253f 40%, #0f1e32 100%);
+            transition: none;
+            justify-content: flex-start;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 20px 0 28px;
+            -webkit-overflow-scrolling: touch;
+        }
+        #levelsOverlay.preview-sunrise-legacy {
+            background-image:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.7) 100%),
+                radial-gradient(circle at 50% 50%, #ffd56b 0 52px, transparent 53px),
+                url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600"><defs><linearGradient id="sunriseGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%%" style="stop-color:%234a1a4a;stop-opacity:1" /><stop offset="12%%" style="stop-color:%235d2b5d;stop-opacity:1" /><stop offset="25%%" style="stop-color:%238b4f7f;stop-opacity:1" /><stop offset="38%%" style="stop-color:%23d4824a;stop-opacity:1" /><stop offset="50%%" style="stop-color:%23ff9a5a;stop-opacity:1" /><stop offset="62%%" style="stop-color:%23ffa840;stop-opacity:1" /><stop offset="75%%" style="stop-color:%238ad9ef;stop-opacity:1" /><stop offset="88%%" style="stop-color:%235aa8d8;stop-opacity:1" /><stop offset="100%%" style="stop-color:%234a9fd8;stop-opacity:1" /></linearGradient><radialGradient id="sunCore" cx="50%%" cy="28%%"><stop offset="0%%" style="stop-color:%23fffef0;stop-opacity:1" /><stop offset="15%%" style="stop-color:%23ffcc00;stop-opacity:1" /><stop offset="30%%" style="stop-color:%23ff9900;stop-opacity:1" /><stop offset="50%%" style="stop-color:%23ff6600;stop-opacity:0.95" /><stop offset="70%%" style="stop-color:%23ff3300;stop-opacity:0.8" /><stop offset="100%%" style="stop-color:%23cc1100;stop-opacity:0" /></radialGradient><radialGradient id="sunGlow" cx="50%%" cy="28%%"><stop offset="0%%" style="stop-color:%23ffaa44;stop-opacity:0.5" /><stop offset="50%%" style="stop-color:%23ff8833;stop-opacity:0.2" /><stop offset="100%%" style="stop-color:%23ff6600;stop-opacity:0" /></radialGradient></defs><rect width="400" height="600" fill="url(%23sunriseGrad)"/><circle cx="200" cy="300" r="150" fill="url(%23sunGlow)" opacity="0.6"/><circle cx="200" cy="300" r="85" fill="url(%23sunCore)"/><line x1="200" y1="215" x2="200" y2="150" stroke="%23ff9900" stroke-width="3" opacity="0.7"/><line x1="244" y1="227" x2="306" y2="175" stroke="%23ff9900" stroke-width="3" opacity="0.7"/><line x1="274" y1="259" x2="350" y2="190" stroke="%23ff9900" stroke-width="2.5" opacity="0.65"/><line x1="285" y1="300" x2="365" y2="300" stroke="%23ff9900" stroke-width="3" opacity="0.7"/><line x1="274" y1="341" x2="350" y2="410" stroke="%23ff9900" stroke-width="2.5" opacity="0.65"/><line x1="244" y1="373" x2="306" y2="425" stroke="%23ff9900" stroke-width="3" opacity="0.7"/><line x1="200" y1="385" x2="200" y2="450" stroke="%23ff9900" stroke-width="3" opacity="0.6"/><line x1="156" y1="373" x2="94" y2="425" stroke="%23ff9900" stroke-width="3" opacity="0.7"/><line x1="126" y1="341" x2="50" y2="410" stroke="%23ff9900" stroke-width="2.5" opacity="0.65"/><line x1="115" y1="300" x2="35" y2="300" stroke="%23ff9900" stroke-width="3" opacity="0.7"/><line x1="126" y1="259" x2="50" y2="190" stroke="%23ff9900" stroke-width="2.5" opacity="0.65"/><line x1="156" y1="227" x2="94" y2="175" stroke="%23ff9900" stroke-width="3" opacity="0.7"/><path d="M 0 380 L 35 340 L 70 360 L 100 325 L 140 350 L 165 305 L 200 330 L 235 295 L 270 340 L 300 310 L 335 350 L 365 320 L 400 350 L 400 440 L 350 430 L 320 435 L 280 425 L 240 430 L 200 420 L 160 428 L 120 422 L 80 430 L 40 425 L 0 430 Z" fill="%23222222" opacity="0.9"/><path d="M 0 410 L 30 370 L 65 390 L 95 345 L 135 375 L 160 325 L 200 355 L 240 315 L 280 355 L 310 330 L 345 370 L 370 340 L 400 370 L 400 460 L 0 460 Z" fill="%23333333" opacity="0.7"/><path d="M 60 420 L 85 380 L 110 410 Z" fill="%23444444" opacity="0.5"/><path d="M 200 410 L 235 360 L 260 405 Z" fill="%23444444" opacity="0.5"/><path d="M 320 425 L 350 380 L 375 420 Z" fill="%23444444" opacity="0.5"/><path d="M 50 420 L 75 390 L 95 415 Z" fill="%23555555" opacity="0.4"/><path d="M 230 415 L 260 370 L 285 410 Z" fill="%23555555" opacity="0.4"/><path d="M 310 422 L 340 385 L 365 418 Z" fill="%23555555" opacity="0.4"/><path d="M 0 445 Q 40 435, 80 442 Q 120 438, 160 445 Q 200 440, 240 444 Q 280 441, 320 445 Q 360 442, 400 448 L 400 470 Q 360 460, 320 465 Q 280 462, 240 466 Q 200 463, 160 467 Q 120 464, 80 468 Q 40 465, 0 470 Z" fill="%234a7a99" opacity="0.75"/><path d="M 0 465 Q 50 455, 100 462 Q 150 458, 200 464 Q 250 460, 300 465 Q 350 462, 400 468 L 400 490 Q 350 480, 300 488 Q 250 484, 200 490 Q 150 486, 100 492 Q 50 488, 0 495 Z" fill="%235a8aa9" opacity="0.6"/><path d="M 0 485 Q 60 478, 120 484 Q 180 480, 240 486 Q 300 482, 360 487 Q 380 485, 400 488 L 400 520 L 0 520 Z" fill="%236a9ab9" opacity="0.4"/><circle cx="200" cy="370" r="50" fill="%23ffdd99" opacity="0.15"/><ellipse cx="190" cy="380" rx="70" ry="30" fill="%23ffaa66" opacity="0.08"/><path d="M 0 510 Q 25 505, 50 509 Q 75 506, 100 510 Q 125 507, 150 511 Q 175 508, 200 512 Q 225 509, 250 513 Q 275 510, 300 514 Q 325 511, 350 515 Q 375 512, 400 516 L 400 600 L 0 600 Z" fill="%233a6699" opacity="0.35"/><path d="M 0 540 Q 30 535, 60 539 Q 90 536, 120 540 Q 150 537, 180 541 Q 210 538, 240 542 Q 270 539, 300 543 Q 330 540, 360 545 Q 380 543, 400 546 L 400 600 L 0 600 Z" fill="%232a5588" opacity="0.25"/></svg>');
+            background-size: cover, cover, cover;
+            background-position: center, center, center;
+            background-repeat: no-repeat, no-repeat, no-repeat;
+        }
+        #levelsOverlay.preview-greenhills-legacy {
+            background-image:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.7) 100%),
+                url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 600"><defs><linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%%" style="stop-color:%239dd9ff;stop-opacity:1" /><stop offset="40%%" style="stop-color:%23b3e5ff;stop-opacity:1" /><stop offset="100%%" style="stop-color:%238fd9d8;stop-opacity:1" /></linearGradient><radialGradient id="sun" cx="65%%" cy="25%%"><stop offset="0%%" style="stop-color:%23ffffdd;stop-opacity:0.8" /><stop offset="50%%" style="stop-color:%23ffffee;stop-opacity:0.3" /><stop offset="100%%" style="stop-color:%23ffffee;stop-opacity:0" /></radialGradient></defs><rect width="400" height="600" fill="url(%23skyGrad)"/><circle cx="260" cy="150" r="80" fill="url(%23sun)"/><ellipse cx="280" cy="120" rx="35" ry="25" fill="%23fffacd" opacity="0.4"/><ellipse cx="100" cy="140" rx="50" ry="35" fill="%23ffffff" opacity="0.7"/><path d="M 0 420 Q 100 380, 200 360 T 400 380 L 400 450 Q 300 440, 200 450 Q 100 460, 0 440 Z" fill="%233a9d5d"/><path d="M 0 380 Q 120 340, 200 320 T 400 350 L 400 420 Q 250 400, 150 420 Q 50 440, 0 420 Z" fill="%234db870"/><path d="M 0 340 Q 80 300, 150 280 Q 220 250, 280 290 Q 350 330, 400 320 L 400 380 Q 300 360, 200 360 Q 100 360, 0 380 Z" fill="%2355c884"/><path d="M -10 480 Q 50 460, 100 470 Q 150 480, 200 460 Q 280 440, 380 480 L 400 500 L 0 500 Z" fill="%2371d89e"/><ellipse cx="80" cy="420" rx="12" ry="35" fill="%23654321"/><ellipse cx="70" cy="400" rx="25" ry="40" fill="%2355aa55"/><ellipse cx="95" cy="395" rx="20" ry="35" fill="%236bb85f"/><ellipse cx="280" cy="410" rx="10" ry="32" fill="%23654321"/><ellipse cx="268" cy="388" rx="28" ry="45" fill="%2366b366"/><ellipse cx="300" cy="383" rx="22" ry="40" fill="%277caa47"/><ellipse cx="340" cy="430" rx="9" ry="28" fill="%23654321"/><ellipse cx="330" cy="410" rx="24" ry="38" fill="%2355aa55"/><ellipse cx="355" cy="405" rx="18" ry="35" fill="%236bb85f"/><circle cx="120" cy="480" r="4" fill="%23ff69b4"/><circle cx="130" cy="490" r="3" fill="%23ff1493"/><circle cx="140" cy="485" r="3" fill="%23ff69b4"/><circle cx="160" cy="488" r="4" fill="%23ffb6c1"/><circle cx="190" cy="492" r="3" fill="%23ff69b4"/><circle cx="210" cy="485" r="3" fill="%23ff1493"/><circle cx="250" cy="490" r="4" fill="%23ffb6c1"/><circle cx="270" cy="486" r="3" fill="%23ff69b4"/><ellipse cx="200" cy="520" rx="150" ry="30" fill="%2373a8d9" opacity="0.6"/><ellipse cx="200" cy="535" rx="200" ry="40" fill="%234a90c7" opacity="0.4"/></svg>');
+            background-size: cover, cover;
+            background-position: center, center;
+            background-repeat: no-repeat, no-repeat;
+        }
+        #levelsOverlay.preview-sunrise {
+            background-image:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.7) 100%),
+                url('Images/sunrise.png');
+            background-size: cover, cover;
+            background-position: center, center;
+            background-repeat: no-repeat, no-repeat;
+        }
+        #levelsOverlay.preview-greenhills {
+            background-image:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.7) 100%),
+                url('Images/green%20hills.png');
+            background-size: cover, cover;
+            background-position: center, center;
+            background-repeat: no-repeat, no-repeat;
+        }
+        
+        /* Upload area */
+        .upload-area {
+            width: 60px;
+            height: 60px;
+            border: 2px dashed #666;
+            border-radius: 10px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-size: 32px;
+            color: #666;
+            transition: all 0.2s;
+            margin: 15px 0;
+        }
+        .upload-area:hover { border-color: #00aaff; color: #00aaff; }
+        
+        /* Pause button */
+        #pauseBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 30px;
+            height: 30px;
+            background: rgba(255,255,255,0.1);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            z-index: 150;
+            display: none;
+        }
+        #pauseBtn::before, #pauseBtn::after {
+            content: '';
+            position: absolute;
+            width: 4px;
+            height: 12px;
+            background: white;
+            top: 9px;
+        }
+        #pauseBtn::before { left: 9px; }
+        #pauseBtn::after { right: 9px; }
+        #pauseBtn:hover { background: rgba(255,255,255,0.2); }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #222; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #777; }
+        
+        /* Shop items */
+        .shop-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 10px;
+        }
+        #shopOverlay .tabs {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 6px;
+            width: 280px;
+        }
+        #shopOverlay .tabs .tab {
+            min-width: 0;
+            width: 100%;
+            margin: 0;
+            padding: 10px 6px;
+            font-size: 12px;
+        }
+        .shop-item {
+            aspect-ratio: 1;
+            background: #333;
+            border: 2px solid #555;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        .shop-item-icon {
+            font-size: 34px;
+            line-height: 1;
+            margin-bottom: 8px;
+            filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+        }
+        .shop-item-label {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .shop-item-lock {
+            margin-top: 6px;
+            font-size: 13px;
+        }
+        .shop-item:hover { border-color: #00aaff; }
+        .shop-item.selected { border-color: #00ff00; background: #2a4a2a; }
+        .shop-item.locked { opacity: 0.5; }
+        
+        /* MIDI file input */
+        #midiFileInput { display: none; }
+        
+        /* Tutorial overlay */
+        .tutorial-text {
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 300px;
+            text-align: center;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <button id="pauseBtn"></button>
+        
+        <!-- HUD -->
+        <div id="hud" style="display: none;">
+            <span id="scoreDisplay">Score: 0</span>
+            <div class="hud-center">
+                <span id="comboDisplay">Combo: 0x</span>
+                <span id="livesDisplay" aria-label="Lives"></span>
+            </div>
+        </div>
+        <div id="judgementRow">
+            <div id="judgementDisplay"></div>
+            <div id="comboMultiplier"></div>
+        </div>
+        
+        <!-- Countdown -->
+        <div class="hidden" id="countdownOverlay">
+            <span id="countdownText">3</span>
+        </div>
+        
+        <!-- Main Menu -->
+        <div class="overlay" id="menuOverlay">
+            <h1>FALLIN' KEYS</h1>
+            <button class="button" onclick="showPlaySelect()">Play</button>
+            <button class="button" onclick="showLevels()">Levels</button>
+            <button class="button" onclick="showShop()">Shop</button>
+            <button class="button" onclick="showSettings()">Settings</button>
+        </div>
+        
+        <!-- Play Select -->
+        <div class="overlay hidden" id="playSelectOverlay">
+            <h3>Select Mode</h3>
+            <button class="button" onclick="startFreePlay()">Free Play</button>
+            <button class="button" onclick="startTutorial()">Tutorial</button>
+            <button class="button small" onclick="showMenu()">Back</button>
+        </div>
+        
+        <!-- Levels -->
+        <div class="overlay hidden" id="levelsOverlay">
+            <h3>Levels</h3>
+            <button class="button level-btn" id="level1Btn" onclick="startLevel(1)">
+                Level 1: Sunrise
+                <span class="stars" id="level1Stars">&#9734;&#9734;&#9734;</span>
+            </button>
+            <button class="button level-btn" id="level2Btn" onclick="startLevel(2)">
+                Level 2: Green Hills
+                <span class="stars" id="level2Stars">&#9734;&#9734;&#9734;</span>
+            </button>
+            <div class="upload-area" onclick="document.getElementById('midiFileInput').click()">+</div>
+            <input type="file" id="midiFileInput" accept=".mid,.midi" onchange="handleMidiUpload(event)">
+            <p style="font-size: 12px; color: #888; margin-bottom: 10px;">Upload MIDI file</p>
+            <div id="recentUploadsContainer" style="margin-top: 36px;"></div>
+            <button class="button small" onclick="showMenu()">Back</button>
+        </div>
+        
+        <!-- Shop -->
+        <div class="overlay hidden" id="shopOverlay">
+            <h3>Shop</h3>
+            <div class="tabs">
+                <button class="button tab active" id="shopThemesTab" onclick="switchShopTab('themes')">Themes</button>
+                <button class="button tab" id="shopBgTab" onclick="switchShopTab('background')">Background</button>
+                <button class="button tab" id="shopInstTab" onclick="switchShopTab('instruments')">Instruments</button>
+            </div>
+            <div class="settings-content" id="shopContent">
+                <div class="shop-grid" id="shopGrid"></div>
+            </div>
+            <button class="button small" onclick="closeShop()">Back</button>
+        </div>
+        
+        <!-- Settings -->
+        <div class="overlay hidden" id="settingsOverlay">
+            <h3>Settings</h3>
+            <div class="settings-tabs">
+                <button class="button tab active" id="settingsGameplayTab" onclick="switchSettingsTab('gameplay')">Gameplay</button>
+                <button class="button tab" id="settingsVisualsTab" onclick="switchSettingsTab('visuals')">Visuals</button>
+                <button class="button tab" id="settingsAudioTab" onclick="switchSettingsTab('audio')">Audio</button>
+                <button class="button tab" id="settingsMidiTab" onclick="switchSettingsTab('midi')">MIDI</button>
+            </div>
+            <div class="settings-content" id="settingsContent"></div>
+            <button class="button small" onclick="closeSettings()">Back</button>
+        </div>
+        
+        <!-- Pause -->
+        <div class="overlay hidden" id="pauseOverlay">
+            <h3>PAUSED</h3>
+            <button class="button pause-btn" onclick="resumeGame()">Continue</button>
+            <button class="button pause-btn" onclick="showShopFromPause()">Shop</button>
+            <button class="button pause-btn" onclick="showSettingsFromPause()">Settings</button>
+            <button class="button pause-btn" onclick="returnToMenu()">Return to Menu</button>
+        </div>
+        
+        <!-- Game Over -->
+        <div class="overlay hidden" id="gameOverOverlay">
+            <h2>GAME OVER</h2>
+            <p id="finalScore" style="font-size: 24px; margin-bottom: 10px;">Score: 0</p>
+            <p id="finalCombo" style="font-size: 16px; margin-bottom: 20px; color: #888;">Max Combo: 0x</p>
+            <button class="button" onclick="restartGame()">Play Again</button>
+            <button class="button" onclick="showMenu()">Menu</button>
+        </div>
+        
+        <!-- Level Complete -->
+        <div class="overlay hidden" id="levelCompleteOverlay">
+            <h2 style="color: #00ff00;">LEVEL COMPLETE!</h2>
+            <p id="levelScore" style="font-size: 24px; margin-bottom: 10px;">Score: 0</p>
+            <p id="levelStars" style="font-size: 36px; margin-bottom: 20px; color: #ffaa00;">&#9733;&#9733;&#9733;</p>
+            <button class="button" onclick="restartGame()">Replay</button>
+            <button class="button" onclick="showLevels()">Levels</button>
+            <button class="button" onclick="showMenu()">Menu</button>
+        </div>
+        
+        <!-- Tutorial -->
+        <div class="overlay hidden" id="tutorialOverlay">
+            <div class="tutorial-text" id="tutorialText">
+                <p>Welcome to Fallin' Keys!</p>
+                <p style="margin-top: 10px;">Press the correct key when a tile reaches the white bar at the bottom.</p>
+            </div>
+            <button class="button" style="margin-top: 20px;" onclick="continueTutorial()">Continue</button>
+        </div>
+        
+        <!-- MIDI Analyse -->
+        <div class="overlay hidden" id="midiAnalysisOverlay">
+            <h3>MIDI Analyse</h3>
+            <div class="settings-content" id="midiAnalysisContent" style="text-align: left; font-size: 13px; font-family: monospace;"></div>
+            <button class="button" style="margin-top: 15px;" onclick="startAfterAnalysis()">Start Level</button>
+            <button class="button small" onclick="closeMidiAnalysis()">Terug</button>
+        </div>
+        
+        <div class="info-text" id="infoText">Keys: A W S E D C U J I K O L</div>
+    </div>
+
+    <script>
+        // ============================================
+        // FALLIN' KEYS - Full Featured HTML5 Version
+        // ============================================
+        
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Game Constants
+        const SCREEN_WIDTH = 400;
+        const SCREEN_HEIGHT = 600;
+        const FPS = 60;
+        const NUM_COLUMNS = 12;
+        const BAR_HEIGHT = 80;
+        const BAR_Y = SCREEN_HEIGHT - BAR_HEIGHT;
+        const TILE_SIZE = 30;
+        const HIT_MARGIN_PX = 24;
+        const BLACK_INDICES = [1, 3, 6, 8, 10];
+        const BLACK_FACTOR = 0.6;
+        const WRONG_KEY_FLASH_FRAMES = Math.floor(FPS * 0.22);
+        const MISSED_NOTE_FLASH_FRAMES = Math.floor(FPS * 2);
+        
+        // Colors
+        const TILE_COLOR = '#ffff00';
+        const TILE_HIT_COLOR = '#00ff00';
+        const TILE_MISS_COLOR = '#ff0000';
+        
+        // Key Labels
+        const KEY_LABELS = {0:'A', 1:'W', 2:'S', 3:'E', 4:'D', 5:'C', 6:'U', 7:'J', 8:'I', 9:'K', 10:'O', 11:'L'};
+        const NOTE_LABELS = {0:'C3', 1:'C#3', 2:'D3', 3:'D#3', 4:'E3', 5:'F3', 6:'F#3', 7:'G3', 8:'G#3', 9:'A3', 10:'A#3', 11:'B3'};
+        const STRAIGHT_LABELS = {0:'1', 1:'2', 2:'3', 3:'4', 4:'5', 5:'6', 6:'7', 7:'8', 8:'9', 9:'0', 10:'-', 11:'='};
+        const KEY_PARTICLE_COUNT = 5;
+        const KEY_PARTICLE_LIFETIME = 22;
+        const KEY_PARTICLE_EMIT_INTERVAL = 1;
+        
+        // Column configuration
+        const RAW_WIDTHS = Array(NUM_COLUMNS).fill(0).map((_, i) => BLACK_INDICES.includes(i) ? BLACK_FACTOR : 1.0);
+        const total_raw = RAW_WIDTHS.reduce((a, b) => a + b, 0);
+        const column_widths = RAW_WIDTHS.map(w => Math.floor(w / total_raw * SCREEN_WIDTH));
+        column_widths[NUM_COLUMNS - 1] += SCREEN_WIDTH - column_widths.reduce((a, b) => a + b, 0);
+        const column_x = [];
+        let cx = 0;
+        for (let w of column_widths) { column_x.push(cx); cx += w; }
+        
+        // Key mappings
+        const KEYS = {65:0, 87:1, 83:2, 69:3, 68:4, 67:5, 85:6, 74:7, 73:8, 75:9, 79:10, 76:11};
+        const STRAIGHT_KEYS = {49:0, 50:1, 51:2, 52:3, 53:4, 54:5, 55:6, 56:7, 57:8, 48:9, 189:10, 187:11};
+        
+        // Base note frequencies for keyboard (C3 to B3) when no MIDI note
+        const BASE_FREQUENCIES = {
+            0: 130.81, 1: 138.59, 2: 146.83, 3: 155.56, 4: 164.81, 5: 174.61,
+            6: 185.00, 7: 196.00, 8: 207.65, 9: 220.00, 10: 233.08, 11: 246.94
+        };
+        
+        // Calculate frequency from MIDI note number (like Python version)
+        function getMidiFrequency(noteNum) {
+            if (noteNum === null || noteNum === undefined) return 440;
+            // Standard MIDI formula: freq = 440 * 2^((note-69)/12)
+            // Note 69 = A4 = 440Hz
+            return 440 * Math.pow(2, (noteNum - 69) / 12);
+        }
+        
+        // ============================================
+        // Game State
+        // ============================================
+        let gameState = {
+            state: 'menu',
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            tiles: [],
+            pressedKeys: new Set(),
+            keysCurrentlyPressed: new Set(),
+            midiNotesCurrentlyPressed: new Set(),
+            sustainedMidiNotes: new Set(),
+            sustainPedalDown: false,
+            pressedColumnCounts: Array(NUM_COLUMNS).fill(0),
+            keyParticles: [],
+            keyParticleEmitTimers: Array(NUM_COLUMNS).fill(0),
+            volcanoBigCooldowns: Array(NUM_COLUMNS).fill(0),
+            uiParticleLoopActive: false,
+            gameLoopToken: 0,
+            spawnCounter: 0,
+            gameFrame: 0,
+            tileSpeed: 3,
+            spawnRate: 50,
+            
+            // Level data
+            currentLevel: null,
+            levelNotes: [],
+            levelNoteIndex: 0,
+            useMidiSchedule: false,
+            
+            // Countdown
+            countdownValue: 3,
+            
+            // Settings
+            settings: {
+                labelMode: 'keys', // 'keys', 'notes', 'straight'
+                cheatsEnabled: false,
+                easyHoldEnabled: false,
+                blueHitEnabled: true,
+                soundEnabled: true,
+                volume: 0.5,
+                metronomeEnabled: false
+            },
+            
+            // Shop
+            shop: {
+                selectedTheme: 0,
+                selectedBackground: 0,
+                selectedInstrument: 0,
+                unlockedThemes: [true, true, true, true, true, true],
+                unlockedBackgrounds: [true, true, true],
+                unlockedInstruments: [true, true, true]
+            },
+            
+            // Level ratings
+            levelRatings: {1: 0, 2: 0},
+            
+            // Tutorial
+            tutorialStep: 0,
+            tutorialMode: false,
+            
+            // Hold notes
+            activeHolds: {},
+            
+            // Miss/wrong key handling (like Python: show red, then game over after delay)
+            missPending: false,
+            missTimer: 0,
+            missFlashFrames: WRONG_KEY_FLASH_FRAMES,
+            wrongKeyColumn: null,
+            lives: 3,
+            maxLives: 3,
+            livesAnimTimeout: null,
+            
+            // Judgement
+            lastJudgement: '',
+            judgementTimer: 0,
+            lastNotePlayed: 'None',
+            lastShownMultiplier: 0,
+            
+            // Pause
+            pausedFrom: null,
+            settingsReturnState: 'menu',
+            shopReturnState: 'menu',
+            
+            // Audio
+            audioContext: null,
+            audioMasterGain: null,
+            audioCompressor: null,
+            oscillators: {},
+            noteOnTimestamps: {},
+            lastGlobalNoteOnMs: 0,
+            trumpetNoiseBuffer: null,
+            saxNoiseBuffer: null
+        };
+
+        // ============================================
+        // ============================================
+        // Audio System (Web Audio API)
+        // ============================================
+        function initAudio() {
+            if (!gameState.audioContext) {
+                gameState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            if (!gameState.audioCompressor || !gameState.audioMasterGain) {
+                const ctx = gameState.audioContext;
+                const compressor = ctx.createDynamicsCompressor();
+                compressor.threshold.setValueAtTime(-20, ctx.currentTime);
+                compressor.knee.setValueAtTime(18, ctx.currentTime);
+                compressor.ratio.setValueAtTime(4, ctx.currentTime);
+                compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+                compressor.release.setValueAtTime(0.23, ctx.currentTime);
+
+                const master = ctx.createGain();
+                master.gain.setValueAtTime(0.72, ctx.currentTime);
+
+                compressor.connect(master);
+                master.connect(ctx.destination);
+
+                gameState.audioCompressor = compressor;
+                gameState.audioMasterGain = master;
+            }
+
+            syncMasterVolume();
+        }
+
+        function getAudioOutputNode(ctx) {
+            return gameState.audioCompressor || ctx.destination;
+        }
+
+        function syncMasterVolume() {
+            if (!gameState.audioContext || !gameState.audioMasterGain) return;
+            const now = gameState.audioContext.currentTime;
+            const target = gameState.settings.soundEnabled ? 0.72 : 0;
+            gameState.audioMasterGain.gain.cancelScheduledValues(now);
+            gameState.audioMasterGain.gain.setTargetAtTime(target, now, 0.01);
+        }
+
+        function getRapidNoteAttenuation(column, noteNum = null) {
+            const nowMs = performance.now();
+            const voiceKey = noteNum !== null && noteNum !== undefined ? `note:${noteNum}` : `col:${column}`;
+            const lastVoiceMs = gameState.noteOnTimestamps[voiceKey] || 0;
+            const lastGlobalMs = gameState.lastGlobalNoteOnMs || 0;
+
+            gameState.noteOnTimestamps[voiceKey] = nowMs;
+            gameState.lastGlobalNoteOnMs = nowMs;
+
+            const voiceDelta = nowMs - lastVoiceMs;
+            const globalDelta = nowMs - lastGlobalMs;
+
+            let sameVoiceGain = 1;
+            if (voiceDelta > 0 && voiceDelta < 220) {
+                if (voiceDelta < 55) sameVoiceGain = 0.52;
+                else if (voiceDelta < 90) sameVoiceGain = mapRange(voiceDelta, 55, 90, 0.52, 0.68);
+                else if (voiceDelta < 140) sameVoiceGain = mapRange(voiceDelta, 90, 140, 0.68, 0.85);
+                else sameVoiceGain = mapRange(voiceDelta, 140, 220, 0.85, 1.0);
+            }
+
+            let sequenceGain = 1;
+            if (globalDelta > 0 && globalDelta < 90) {
+                if (globalDelta < 25) sequenceGain = 0.78;
+                else sequenceGain = mapRange(globalDelta, 25, 90, 0.78, 1.0);
+            }
+
+            return Math.min(sameVoiceGain, sequenceGain);
+        }
+
+        function getPianoLowBoost(freq) {
+            if (freq <= 110) return 1.95;
+            if (freq <= 146.83) return 1.7;
+            if (freq <= 196) return 1.45;
+            return 1.0;
+        }
+
+        function getPianoFilterFreq(freq) {
+            if (freq <= 110) return 2200;
+            if (freq <= 146.83) return 2600;
+            if (freq <= 196) return 3000;
+            return 3600;
+        }
+
+        function getTrumpetBodyFilterFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 82), 1046);
+            return mapRange(clamped, 82, 1046, 1500, 2900);
+        }
+
+        function getTrumpetLowpassFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 82), 1046);
+            return mapRange(clamped, 82, 1046, 3800, 6200);
+        }
+
+        function getTrumpetBrightness(freq) {
+            if (freq <= 130) return 0.9;
+            if (freq <= 220) return mapRange(freq, 130, 220, 0.9, 1.0);
+            if (freq <= 440) return mapRange(freq, 220, 440, 1.0, 1.12);
+            if (freq <= 880) return mapRange(freq, 440, 880, 1.12, 1.22);
+            return 1.28;
+        }
+
+        function getTrumpetVibratoDepth(freq) {
+            if (freq <= 130) return 2.8;
+            if (freq <= 220) return mapRange(freq, 130, 220, 2.8, 3.6);
+            if (freq <= 440) return mapRange(freq, 220, 440, 3.6, 5.4);
+            return 6.4;
+        }
+
+        function getSaxBodyFilterFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 98), 1175);
+            return mapRange(clamped, 98, 1175, 700, 1650);
+        }
+
+        function getSaxAirBandFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 98), 1175);
+            return mapRange(clamped, 98, 1175, 1650, 3100);
+        }
+
+        function getSaxBrightness(freq) {
+            if (freq <= 160) return 0.88;
+            if (freq <= 260) return mapRange(freq, 160, 260, 0.88, 1.0);
+            if (freq <= 520) return mapRange(freq, 260, 520, 1.0, 1.12);
+            return 1.18;
+        }
+
+        function getSaxVibratoDepth(freq) {
+            if (freq <= 160) return 4.8;
+            if (freq <= 260) return mapRange(freq, 160, 260, 4.8, 6.0);
+            if (freq <= 520) return mapRange(freq, 260, 520, 6.0, 7.8);
+            return 9.0;
+        }
+
+        function ensureSaxNoiseBuffer(ctx) {
+            if (gameState.saxNoiseBuffer) return gameState.saxNoiseBuffer;
+            const bufferLength = Math.max(1, Math.floor(ctx.sampleRate * 0.4));
+            const buffer = ctx.createBuffer(1, bufferLength, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            let prev = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                const white = Math.random() * 2 - 1;
+                const pinkish = (prev * 0.72) + (white * 0.28);
+                prev = pinkish;
+                data[i] = pinkish * 0.82;
+            }
+            gameState.saxNoiseBuffer = buffer;
+            return buffer;
+        }
+
+        function ensureTrumpetNoiseBuffer(ctx) {
+            if (gameState.trumpetNoiseBuffer) return gameState.trumpetNoiseBuffer;
+            const bufferLength = Math.max(1, Math.floor(ctx.sampleRate * 0.33));
+            const buffer = ctx.createBuffer(1, bufferLength, ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < bufferLength; i++) {
+                const x = Math.random() * 2 - 1;
+                data[i] = x * 0.75;
+            }
+            gameState.trumpetNoiseBuffer = buffer;
+            return buffer;
+        }
+
+        function mapRange(value, inMin, inMax, outMin, outMax) {
+            if (inMax === inMin) return outMin;
+            const t = Math.min(Math.max((value - inMin) / (inMax - inMin), 0), 1);
+            return outMin + (outMax - outMin) * t;
+        }
+
+        // Rough equal-loudness contour compensation for musical note frequencies.
+        // Boost lows, keep mids neutral, attenuate highs to reduce harshness.
+        function getEqualLoudnessGain(freq) {
+            const safeFreq = Math.max(20, Math.min(freq || 440, 10000));
+
+            if (safeFreq <= 80) return 2.05;
+            if (safeFreq <= 130) return mapRange(safeFreq, 80, 130, 2.05, 1.78);
+            if (safeFreq <= 220) return mapRange(safeFreq, 130, 220, 1.78, 1.42);
+            if (safeFreq <= 440) return mapRange(safeFreq, 220, 440, 1.42, 1.08);
+            if (safeFreq <= 1200) return mapRange(safeFreq, 440, 1200, 1.08, 0.95);
+            if (safeFreq <= 2400) return mapRange(safeFreq, 1200, 2400, 0.95, 0.88);
+            if (safeFreq <= 4000) return mapRange(safeFreq, 2400, 4000, 0.88, 0.78);
+            if (safeFreq <= 6000) return mapRange(safeFreq, 4000, 6000, 0.78, 0.70);
+            return 0.66;
+        }
+        
+        function playNote(column, duration = 0.3, noteNum = null) {
+            if (!gameState.settings.soundEnabled) return;
+            initAudio();
+            const ctx = gameState.audioContext;
+            const freq = noteNum ? getMidiFrequency(noteNum) : (BASE_FREQUENCIES[column] || 440);
+            const instrument = gameState.shop.selectedInstrument;
+            const rapidGain = getRapidNoteAttenuation(column, noteNum);
+            if (instrument === 2) { playSaxophoneNote(ctx, freq, duration, rapidGain); }
+            else if (instrument === 1) { playTrumpetNote(ctx, freq, duration, rapidGain); }
+            else { playPianoNote(ctx, freq, duration, rapidGain); }
+        }
+        
+        function playPianoNote(ctx, freq, duration, noteGain = 1) {
+            const now = ctx.currentTime;
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.72 * noteGain;
+            const lowBoost = getPianoLowBoost(freq);
+            const masterGain = ctx.createGain(); masterGain.connect(getAudioOutputNode(ctx));
+            const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(getPianoFilterFreq(freq), now); filter.connect(masterGain);
+            const endTime = now + Math.max(duration, 0.18);
+            const fastDecayTime = Math.min(Math.max(duration * 0.45, 0.055), 0.12);
+            const fastDropTime = now + fastDecayTime;
+            const osc1 = ctx.createOscillator(); const gain1 = ctx.createGain(); osc1.type = 'sine'; osc1.frequency.setValueAtTime(freq, now); osc1.connect(gain1); gain1.connect(filter);
+            const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain(); osc2.type = 'sine'; osc2.frequency.setValueAtTime(freq*2, now); osc2.connect(gain2); gain2.connect(filter);
+            const osc3 = ctx.createOscillator(); const gain3 = ctx.createGain(); osc3.type = 'triangle'; osc3.frequency.setValueAtTime(freq*3, now); osc3.connect(gain3); gain3.connect(filter);
+            const osc4 = ctx.createOscillator(); const gain4 = ctx.createGain(); osc4.type = 'sine'; osc4.frequency.setValueAtTime(freq*4, now); osc4.connect(gain4); gain4.connect(filter);
+            const oscSub = ctx.createOscillator(); const gainSub = ctx.createGain(); oscSub.type = 'triangle'; oscSub.frequency.setValueAtTime(freq, now); oscSub.connect(gainSub); gainSub.connect(filter);
+            gain1.gain.setValueAtTime(0.0001, now); gain1.gain.linearRampToValueAtTime(volume*0.34*lowBoost, now+0.012); gain1.gain.exponentialRampToValueAtTime(Math.max(volume*0.14*lowBoost, 0.0001), fastDropTime); gain1.gain.exponentialRampToValueAtTime(0.0001, endTime);
+            gain2.gain.setValueAtTime(0.0001, now); gain2.gain.linearRampToValueAtTime(volume*0.145*Math.min(lowBoost, 1.35), now+0.012); gain2.gain.exponentialRampToValueAtTime(Math.max(volume*0.0465*Math.min(lowBoost, 1.3), 0.0001), fastDropTime); gain2.gain.exponentialRampToValueAtTime(0.0001, endTime);
+            gain3.gain.setValueAtTime(0.0001, now); gain3.gain.linearRampToValueAtTime(volume*0.124, now+0.01); gain3.gain.exponentialRampToValueAtTime(Math.max(volume*0.0395, 0.0001), now+Math.min(fastDecayTime, 0.09)); gain3.gain.exponentialRampToValueAtTime(0.0001, now+Math.min(duration*0.72, 0.2));
+            gain4.gain.setValueAtTime(0.0001, now); gain4.gain.linearRampToValueAtTime(volume*0.106, now+0.008); gain4.gain.exponentialRampToValueAtTime(Math.max(volume*0.0335, 0.0001), now+Math.min(fastDecayTime*0.85, 0.08)); gain4.gain.exponentialRampToValueAtTime(0.0001, now+Math.min(duration*0.6, 0.17));
+            gainSub.gain.setValueAtTime(0.0001, now); gainSub.gain.linearRampToValueAtTime(volume*0.13*lowBoost, now+0.018); gainSub.gain.exponentialRampToValueAtTime(Math.max(volume*0.055*lowBoost, 0.0001), fastDropTime); gainSub.gain.exponentialRampToValueAtTime(0.0001, endTime);
+            osc1.start(now); osc2.start(now); osc3.start(now); osc4.start(now); oscSub.start(now);
+            osc1.stop(endTime+0.05); osc2.stop(endTime+0.05); osc3.stop(endTime+0.05); osc4.stop(endTime+0.05); oscSub.stop(endTime+0.05);
+        }
+        
+        function playTrumpetNote(ctx, freq, duration, noteGain = 1) {
+            const now = ctx.currentTime;
+            const noteDuration = Math.max(duration, 0.2);
+            const brightness = getTrumpetBrightness(freq);
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.61 * brightness * noteGain;
+            const attackTime = 0.012;
+            const bloomTime = 0.065;
+            const releaseTime = Math.min(Math.max(noteDuration * 0.35, 0.11), 0.22);
+            const releaseStart = now + Math.max(noteDuration - releaseTime, attackTime + bloomTime + 0.02);
+            const endTime = releaseStart + releaseTime;
+
+            const masterGain = ctx.createGain();
+            masterGain.connect(getAudioOutputNode(ctx));
+            const hp = ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.setValueAtTime(140, now);
+            const body = ctx.createBiquadFilter();
+            body.type = 'bandpass';
+            body.frequency.setValueAtTime(getTrumpetBodyFilterFreq(freq), now);
+            body.Q.setValueAtTime(1.25, now);
+            const presence = ctx.createBiquadFilter();
+            presence.type = 'peaking';
+            presence.frequency.setValueAtTime(2380, now);
+            presence.Q.setValueAtTime(0.95, now);
+            presence.gain.setValueAtTime(2.8 * brightness, now);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.setValueAtTime(getTrumpetLowpassFreq(freq), now);
+            lp.Q.setValueAtTime(0.8, now);
+            hp.connect(body); body.connect(presence); presence.connect(lp); lp.connect(masterGain);
+
+            const toneMix = ctx.createGain();
+            toneMix.connect(hp);
+            const toneGain = ctx.createGain();
+            toneGain.connect(toneMix);
+            toneGain.gain.setValueAtTime(0.0001, now);
+            toneGain.gain.linearRampToValueAtTime(volume * 1.02, now + attackTime);
+            toneGain.gain.linearRampToValueAtTime(volume * 0.78, now + bloomTime);
+            toneGain.gain.setValueAtTime(volume * 0.78, releaseStart);
+            toneGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+            const detuneA = (Math.random() - 0.5) * 3.2;
+            const detuneB = (Math.random() - 0.5) * 4.2;
+            const scoopStart = freq * 0.965;
+            const scoopEndTime = now + 0.055;
+
+            const oscMain = ctx.createOscillator();
+            const gainMain = ctx.createGain();
+            oscMain.type = 'sawtooth';
+            oscMain.frequency.setValueAtTime(scoopStart, now);
+            oscMain.frequency.exponentialRampToValueAtTime(freq, scoopEndTime);
+            oscMain.detune.setValueAtTime(detuneA, now);
+            gainMain.gain.setValueAtTime(volume * 0.46, now);
+            oscMain.connect(gainMain); gainMain.connect(toneGain);
+
+            const oscCore = ctx.createOscillator();
+            const gainCore = ctx.createGain();
+            oscCore.type = 'square';
+            oscCore.frequency.setValueAtTime(scoopStart, now);
+            oscCore.frequency.exponentialRampToValueAtTime(freq, scoopEndTime);
+            oscCore.detune.setValueAtTime(detuneB, now);
+            gainCore.gain.setValueAtTime(volume * 0.18, now);
+            oscCore.connect(gainCore); gainCore.connect(toneGain);
+
+            const oscBrilliance = ctx.createOscillator();
+            const gainBrilliance = ctx.createGain();
+            oscBrilliance.type = 'triangle';
+            oscBrilliance.frequency.setValueAtTime(freq * 2, now);
+            oscBrilliance.detune.setValueAtTime(detuneA * 0.55, now);
+            gainBrilliance.gain.setValueAtTime(volume * 0.14, now);
+            oscBrilliance.connect(gainBrilliance); gainBrilliance.connect(toneGain);
+
+            const vibrato = ctx.createOscillator();
+            const vibratoMain = ctx.createGain();
+            const vibratoCore = ctx.createGain();
+            const vibratoBrilliance = ctx.createGain();
+            vibrato.type = 'sine';
+            vibrato.frequency.setValueAtTime(5.6, now);
+            const depth = getTrumpetVibratoDepth(freq);
+            vibratoMain.gain.setValueAtTime(0.0001, now);
+            vibratoMain.gain.linearRampToValueAtTime(depth, now + 0.2);
+            vibratoCore.gain.setValueAtTime(0.0001, now);
+            vibratoCore.gain.linearRampToValueAtTime(depth * 0.66, now + 0.2);
+            vibratoBrilliance.gain.setValueAtTime(0.0001, now);
+            vibratoBrilliance.gain.linearRampToValueAtTime(depth * 0.42, now + 0.2);
+            vibrato.connect(vibratoMain); vibrato.connect(vibratoCore); vibrato.connect(vibratoBrilliance);
+            vibratoMain.connect(oscMain.detune); vibratoCore.connect(oscCore.detune); vibratoBrilliance.connect(oscBrilliance.detune);
+
+            const noiseSource = ctx.createBufferSource();
+            noiseSource.buffer = ensureTrumpetNoiseBuffer(ctx);
+            noiseSource.loop = true;
+            const noiseHP = ctx.createBiquadFilter();
+            noiseHP.type = 'highpass';
+            noiseHP.frequency.setValueAtTime(620, now);
+            const noiseBP = ctx.createBiquadFilter();
+            noiseBP.type = 'bandpass';
+            noiseBP.frequency.setValueAtTime(1850, now);
+            noiseBP.Q.setValueAtTime(1.15, now);
+            const noiseGain = ctx.createGain();
+            noiseGain.gain.setValueAtTime(0.0001, now);
+            noiseGain.gain.linearRampToValueAtTime(volume * 0.11 * brightness, now + 0.01);
+            noiseGain.gain.exponentialRampToValueAtTime(volume * 0.03, now + 0.09);
+            noiseGain.gain.setValueAtTime(volume * 0.025, releaseStart);
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+            noiseSource.connect(noiseHP); noiseHP.connect(noiseBP); noiseBP.connect(noiseGain); noiseGain.connect(hp);
+
+            oscMain.start(now);
+            oscCore.start(now);
+            oscBrilliance.start(now);
+            vibrato.start(now);
+            noiseSource.start(now);
+
+            const stopAt = endTime + 0.05;
+            oscMain.stop(stopAt);
+            oscCore.stop(stopAt);
+            oscBrilliance.stop(stopAt);
+            vibrato.stop(stopAt);
+            noiseSource.stop(stopAt);
+        }
+        
+        function playSaxophoneNote(ctx, freq, duration, noteGain = 1) {
+            const now = ctx.currentTime;
+            const noteDuration = Math.max(duration, 0.24);
+            const brightness = getSaxBrightness(freq);
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.57 * brightness * noteGain;
+            const attackTime = 0.022;
+            const bodySettleTime = 0.14;
+            const releaseTime = Math.min(Math.max(noteDuration * 0.34, 0.12), 0.24);
+            const releaseStart = now + Math.max(noteDuration - releaseTime, attackTime + 0.08);
+            const endTime = releaseStart + releaseTime;
+
+            const masterGain = ctx.createGain();
+            masterGain.connect(getAudioOutputNode(ctx));
+            const hp = ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.setValueAtTime(110, now);
+            const body = ctx.createBiquadFilter();
+            body.type = 'bandpass';
+            body.frequency.setValueAtTime(getSaxBodyFilterFreq(freq), now);
+            body.Q.setValueAtTime(1.35, now);
+            const throat = ctx.createBiquadFilter();
+            throat.type = 'peaking';
+            throat.frequency.setValueAtTime(880, now);
+            throat.Q.setValueAtTime(1.1, now);
+            throat.gain.setValueAtTime(2.6, now);
+            const air = ctx.createBiquadFilter();
+            air.type = 'bandpass';
+            air.frequency.setValueAtTime(getSaxAirBandFreq(freq), now);
+            air.Q.setValueAtTime(0.95, now);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 98), 1175), 98, 1175, 3600, 5300), now);
+            lp.Q.setValueAtTime(0.74, now);
+            hp.connect(body); body.connect(throat); throat.connect(air); air.connect(lp); lp.connect(masterGain);
+
+            const toneGain = ctx.createGain();
+            toneGain.connect(hp);
+            toneGain.gain.setValueAtTime(0.0001, now);
+            toneGain.gain.linearRampToValueAtTime(volume * 1.04, now + attackTime);
+            toneGain.gain.linearRampToValueAtTime(volume * 0.82, now + bodySettleTime);
+            toneGain.gain.setValueAtTime(volume * 0.82, releaseStart);
+            toneGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+            const pitchDipStart = freq * 1.015;
+            const pitchTargetTime = now + 0.08;
+            const oscReed = ctx.createOscillator();
+            const gainReed = ctx.createGain();
+            oscReed.type = 'sawtooth';
+            oscReed.frequency.setValueAtTime(pitchDipStart, now);
+            oscReed.frequency.exponentialRampToValueAtTime(freq, pitchTargetTime);
+            oscReed.detune.setValueAtTime((Math.random() - 0.5) * 5.2, now);
+            gainReed.gain.setValueAtTime(volume * 0.44, now);
+            oscReed.connect(gainReed); gainReed.connect(toneGain);
+
+            const oscWarmth = ctx.createOscillator();
+            const gainWarmth = ctx.createGain();
+            oscWarmth.type = 'triangle';
+            oscWarmth.frequency.setValueAtTime(freq, now);
+            oscWarmth.detune.setValueAtTime((Math.random() - 0.5) * 3.4, now);
+            gainWarmth.gain.setValueAtTime(volume * 0.2, now);
+            oscWarmth.connect(gainWarmth); gainWarmth.connect(toneGain);
+
+            const oscEdge = ctx.createOscillator();
+            const gainEdge = ctx.createGain();
+            oscEdge.type = 'square';
+            oscEdge.frequency.setValueAtTime(freq * 2, now);
+            oscEdge.detune.setValueAtTime((Math.random() - 0.5) * 2.3, now);
+            gainEdge.gain.setValueAtTime(volume * 0.11 * brightness, now);
+            oscEdge.connect(gainEdge); gainEdge.connect(toneGain);
+
+            const vibrato = ctx.createOscillator();
+            vibrato.type = 'sine';
+            vibrato.frequency.setValueAtTime(5.2, now);
+            const depth = getSaxVibratoDepth(freq);
+            const vibReed = ctx.createGain();
+            const vibWarmth = ctx.createGain();
+            vibReed.gain.setValueAtTime(0.0001, now);
+            vibReed.gain.linearRampToValueAtTime(depth, now + 0.28);
+            vibWarmth.gain.setValueAtTime(0.0001, now);
+            vibWarmth.gain.linearRampToValueAtTime(depth * 0.72, now + 0.28);
+            vibrato.connect(vibReed); vibrato.connect(vibWarmth);
+            vibReed.connect(oscReed.detune); vibWarmth.connect(oscWarmth.detune);
+
+            const growl = ctx.createOscillator();
+            growl.type = 'triangle';
+            growl.frequency.setValueAtTime(23 + Math.random() * 6, now);
+            const growlDepth = ctx.createGain();
+            growlDepth.gain.setValueAtTime(0.0001, now);
+            growlDepth.gain.linearRampToValueAtTime(2.2, now + 0.12);
+            growl.connect(growlDepth);
+            growlDepth.connect(oscReed.detune);
+
+            const reedNoise = ctx.createBufferSource();
+            reedNoise.buffer = ensureSaxNoiseBuffer(ctx);
+            reedNoise.loop = true;
+            const noiseHP = ctx.createBiquadFilter();
+            noiseHP.type = 'highpass';
+            noiseHP.frequency.setValueAtTime(500, now);
+            const noiseBP = ctx.createBiquadFilter();
+            noiseBP.type = 'bandpass';
+            noiseBP.frequency.setValueAtTime(getSaxAirBandFreq(freq), now);
+            noiseBP.Q.setValueAtTime(1.1, now);
+            const noiseGain = ctx.createGain();
+            noiseGain.gain.setValueAtTime(0.0001, now);
+            noiseGain.gain.linearRampToValueAtTime(volume * 0.13, now + 0.015);
+            noiseGain.gain.exponentialRampToValueAtTime(volume * 0.04, now + 0.18);
+            noiseGain.gain.setValueAtTime(volume * 0.03, releaseStart);
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+            reedNoise.connect(noiseHP); noiseHP.connect(noiseBP); noiseBP.connect(noiseGain); noiseGain.connect(hp);
+
+            oscReed.start(now);
+            oscWarmth.start(now);
+            oscEdge.start(now);
+            vibrato.start(now);
+            growl.start(now);
+            reedNoise.start(now);
+
+            const stopAt = endTime + 0.05;
+            oscReed.stop(stopAt);
+            oscWarmth.stop(stopAt);
+            oscEdge.stop(stopAt);
+            vibrato.stop(stopAt);
+            growl.stop(stopAt);
+            reedNoise.stop(stopAt);
+        }
+
+        function getSustainVoiceKey(column, noteNum = null) {
+            if (noteNum !== null && noteNum !== undefined) return `note:${noteNum}`;
+            return `col:${column}`;
+        }
+
+        function applySustainDecay(gainNode, peakGain, now, attackTime, sustainRatio, decayTime, maxHoldSeconds = 30) {
+            if (peakGain <= 0) {
+                gainNode.gain.setValueAtTime(0, now);
+                return;
+            }
+            const sustainGain = Math.max(peakGain * sustainRatio, 0.0001);
+            const quarterGain = Math.max(peakGain * 0.25, 0.0001);
+            const hardStopTime = now + Math.min(maxHoldSeconds, 6.0);
+            const quarterTime = now + Math.min(Math.max(attackTime + decayTime * 1.05, attackTime + 0.45), Math.max(hardStopTime - 1.0, now + attackTime + 0.1));
+            const fastDropTime = Math.min(quarterTime + Math.max(decayTime * 0.42, 0.35), hardStopTime - 0.2);
+            gainNode.gain.setValueAtTime(0.0001, now);
+            gainNode.gain.linearRampToValueAtTime(peakGain, now + attackTime);
+            gainNode.gain.exponentialRampToValueAtTime(quarterGain, quarterTime);
+            gainNode.gain.exponentialRampToValueAtTime(Math.max(sustainGain * 0.45, 0.0001), fastDropTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, hardStopTime);
+        }
+        
+        function startSustainSound(column, noteNum = null, maxHoldSeconds = 30, explicitVoiceKey = null) {
+            if (!gameState.settings.soundEnabled) return;
+            initAudio();
+            const ctx = gameState.audioContext;
+            const freq = noteNum ? getMidiFrequency(noteNum) : (BASE_FREQUENCIES[column] || 440);
+            const instrument = gameState.shop.selectedInstrument;
+            const now = ctx.currentTime;
+            const rapidGain = getRapidNoteAttenuation(column, noteNum);
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.68 * rapidGain;
+            const voiceKey = explicitVoiceKey || getSustainVoiceKey(column, noteNum);
+            stopSustainSound(voiceKey);
+
+            if (instrument === 1) {
+                const brightness = getTrumpetBrightness(freq);
+                const trumpetVolume = volume * 0.78 * brightness;
+                const attackTime = 0.016;
+                const maxHold = Math.min(maxHoldSeconds || 30, 30);
+                const naturalEnd = now + maxHold;
+
+                const masterGain = ctx.createGain();
+                masterGain.connect(getAudioOutputNode(ctx));
+                const hp = ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.setValueAtTime(140, now);
+                const body = ctx.createBiquadFilter();
+                body.type = 'bandpass';
+                body.frequency.setValueAtTime(getTrumpetBodyFilterFreq(freq), now);
+                body.Q.setValueAtTime(1.3, now);
+                const presence = ctx.createBiquadFilter();
+                presence.type = 'peaking';
+                presence.frequency.setValueAtTime(2350, now);
+                presence.Q.setValueAtTime(0.95, now);
+                presence.gain.setValueAtTime(2.5 * brightness, now);
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.frequency.setValueAtTime(getTrumpetLowpassFreq(freq), now);
+                lp.Q.setValueAtTime(0.82, now);
+                hp.connect(body); body.connect(presence); presence.connect(lp); lp.connect(masterGain);
+
+                const toneGain = ctx.createGain();
+                toneGain.connect(hp);
+                toneGain.gain.setValueAtTime(0.0001, now);
+                toneGain.gain.linearRampToValueAtTime(trumpetVolume, now + attackTime);
+                toneGain.gain.linearRampToValueAtTime(trumpetVolume * 0.86, now + 0.12);
+                toneGain.gain.setValueAtTime(trumpetVolume * 0.86, naturalEnd - 0.28);
+                toneGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+
+                const scoopStart = freq * 0.965;
+                const scoopEnd = now + 0.06;
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sawtooth';
+                osc1.frequency.setValueAtTime(scoopStart, now);
+                osc1.frequency.exponentialRampToValueAtTime(freq, scoopEnd);
+                osc1.detune.setValueAtTime((Math.random() - 0.5) * 3.6, now);
+                gain1.gain.setValueAtTime(trumpetVolume * 0.39, now);
+                osc1.connect(gain1); gain1.connect(toneGain);
+
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'square';
+                osc2.frequency.setValueAtTime(scoopStart, now);
+                osc2.frequency.exponentialRampToValueAtTime(freq, scoopEnd);
+                osc2.detune.setValueAtTime((Math.random() - 0.5) * 4.6, now);
+                gain2.gain.setValueAtTime(trumpetVolume * 0.15, now);
+                osc2.connect(gain2); gain2.connect(toneGain);
+
+                const osc3 = ctx.createOscillator();
+                const gain3 = ctx.createGain();
+                osc3.type = 'triangle';
+                osc3.frequency.setValueAtTime(freq * 2, now);
+                osc3.detune.setValueAtTime((Math.random() - 0.5) * 2.2, now);
+                gain3.gain.setValueAtTime(trumpetVolume * 0.12, now);
+                osc3.connect(gain3); gain3.connect(toneGain);
+
+                const vibrato = ctx.createOscillator();
+                vibrato.type = 'sine';
+                vibrato.frequency.setValueAtTime(5.5, now);
+                const vibratoMain = ctx.createGain();
+                const vibratoCore = ctx.createGain();
+                const vibratoBrilliance = ctx.createGain();
+                const depth = getTrumpetVibratoDepth(freq);
+                vibratoMain.gain.setValueAtTime(0.0001, now);
+                vibratoMain.gain.linearRampToValueAtTime(depth, now + 0.24);
+                vibratoCore.gain.setValueAtTime(0.0001, now);
+                vibratoCore.gain.linearRampToValueAtTime(depth * 0.67, now + 0.24);
+                vibratoBrilliance.gain.setValueAtTime(0.0001, now);
+                vibratoBrilliance.gain.linearRampToValueAtTime(depth * 0.43, now + 0.24);
+                vibrato.connect(vibratoMain); vibrato.connect(vibratoCore); vibrato.connect(vibratoBrilliance);
+                vibratoMain.connect(osc1.detune); vibratoCore.connect(osc2.detune); vibratoBrilliance.connect(osc3.detune);
+
+                const noiseSource = ctx.createBufferSource();
+                noiseSource.buffer = ensureTrumpetNoiseBuffer(ctx);
+                noiseSource.loop = true;
+                const noiseHP = ctx.createBiquadFilter();
+                noiseHP.type = 'highpass';
+                noiseHP.frequency.setValueAtTime(650, now);
+                const noiseBP = ctx.createBiquadFilter();
+                noiseBP.type = 'bandpass';
+                noiseBP.frequency.setValueAtTime(1900, now);
+                noiseBP.Q.setValueAtTime(1.15, now);
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.0001, now);
+                noiseGain.gain.linearRampToValueAtTime(trumpetVolume * 0.095, now + 0.014);
+                noiseGain.gain.exponentialRampToValueAtTime(trumpetVolume * 0.03, now + 0.1);
+                noiseGain.gain.setValueAtTime(trumpetVolume * 0.025, naturalEnd - 0.28);
+                noiseGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+                noiseSource.connect(noiseHP); noiseHP.connect(noiseBP); noiseBP.connect(noiseGain); noiseGain.connect(hp);
+
+                osc1.start(now); osc2.start(now); osc3.start(now); vibrato.start(now); noiseSource.start(now);
+                osc1.stop(naturalEnd + 0.05); osc2.stop(naturalEnd + 0.05); osc3.stop(naturalEnd + 0.05);
+                vibrato.stop(naturalEnd + 0.05); noiseSource.stop(naturalEnd + 0.05);
+
+                gameState.oscillators[voiceKey] = {
+                    oscillator: osc1,
+                    gainNode: toneGain,
+                    osc2: osc2,
+                    gain2: gain2,
+                    osc3: osc3,
+                    gain3: gain3,
+                    masterGain: masterGain,
+                    extraGainNodes: [vibratoMain, vibratoCore, vibratoBrilliance, noiseGain],
+                    extraOscillators: [vibrato, noiseSource]
+                };
+                return;
+            }
+
+            if (instrument === 2) {
+                const brightness = getSaxBrightness(freq);
+                const saxVolume = volume * 0.76 * brightness;
+                const attackTime = 0.024;
+                const maxHold = Math.min(maxHoldSeconds || 30, 30);
+                const naturalEnd = now + maxHold;
+
+                const masterGain = ctx.createGain();
+                masterGain.connect(getAudioOutputNode(ctx));
+                const hp = ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.setValueAtTime(110, now);
+                const body = ctx.createBiquadFilter();
+                body.type = 'bandpass';
+                body.frequency.setValueAtTime(getSaxBodyFilterFreq(freq), now);
+                body.Q.setValueAtTime(1.32, now);
+                const throat = ctx.createBiquadFilter();
+                throat.type = 'peaking';
+                throat.frequency.setValueAtTime(890, now);
+                throat.Q.setValueAtTime(1.08, now);
+                throat.gain.setValueAtTime(2.5, now);
+                const air = ctx.createBiquadFilter();
+                air.type = 'bandpass';
+                air.frequency.setValueAtTime(getSaxAirBandFreq(freq), now);
+                air.Q.setValueAtTime(0.95, now);
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 98), 1175), 98, 1175, 3600, 5200), now);
+                lp.Q.setValueAtTime(0.72, now);
+                hp.connect(body); body.connect(throat); throat.connect(air); air.connect(lp); lp.connect(masterGain);
+
+                const toneGain = ctx.createGain();
+                toneGain.connect(hp);
+                toneGain.gain.setValueAtTime(0.0001, now);
+                toneGain.gain.linearRampToValueAtTime(saxVolume, now + attackTime);
+                toneGain.gain.linearRampToValueAtTime(saxVolume * 0.84, now + 0.2);
+                toneGain.gain.setValueAtTime(saxVolume * 0.84, naturalEnd - 0.3);
+                toneGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sawtooth';
+                osc1.frequency.setValueAtTime(freq * 1.012, now);
+                osc1.frequency.exponentialRampToValueAtTime(freq, now + 0.08);
+                osc1.detune.setValueAtTime((Math.random() - 0.5) * 5.3, now);
+                gain1.gain.setValueAtTime(saxVolume * 0.41, now);
+                osc1.connect(gain1); gain1.connect(toneGain);
+
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(freq, now);
+                osc2.detune.setValueAtTime((Math.random() - 0.5) * 3.3, now);
+                gain2.gain.setValueAtTime(saxVolume * 0.19, now);
+                osc2.connect(gain2); gain2.connect(toneGain);
+
+                const osc3 = ctx.createOscillator();
+                const gain3 = ctx.createGain();
+                osc3.type = 'square';
+                osc3.frequency.setValueAtTime(freq * 2, now);
+                osc3.detune.setValueAtTime((Math.random() - 0.5) * 2.1, now);
+                gain3.gain.setValueAtTime(saxVolume * 0.1 * brightness, now);
+                osc3.connect(gain3); gain3.connect(toneGain);
+
+                const vibrato = ctx.createOscillator();
+                vibrato.type = 'sine';
+                vibrato.frequency.setValueAtTime(5.1, now);
+                const depth = getSaxVibratoDepth(freq);
+                const vib1 = ctx.createGain();
+                const vib2 = ctx.createGain();
+                vib1.gain.setValueAtTime(0.0001, now);
+                vib1.gain.linearRampToValueAtTime(depth, now + 0.32);
+                vib2.gain.setValueAtTime(0.0001, now);
+                vib2.gain.linearRampToValueAtTime(depth * 0.72, now + 0.32);
+                vibrato.connect(vib1); vibrato.connect(vib2);
+                vib1.connect(osc1.detune); vib2.connect(osc2.detune);
+
+                const growl = ctx.createOscillator();
+                growl.type = 'triangle';
+                growl.frequency.setValueAtTime(22 + Math.random() * 5, now);
+                const growlDepth = ctx.createGain();
+                growlDepth.gain.setValueAtTime(0.0001, now);
+                growlDepth.gain.linearRampToValueAtTime(2.3, now + 0.2);
+                growl.connect(growlDepth);
+                growlDepth.connect(osc1.detune);
+
+                const noiseSource = ctx.createBufferSource();
+                noiseSource.buffer = ensureSaxNoiseBuffer(ctx);
+                noiseSource.loop = true;
+                const noiseHP = ctx.createBiquadFilter();
+                noiseHP.type = 'highpass';
+                noiseHP.frequency.setValueAtTime(500, now);
+                const noiseBP = ctx.createBiquadFilter();
+                noiseBP.type = 'bandpass';
+                noiseBP.frequency.setValueAtTime(getSaxAirBandFreq(freq), now);
+                noiseBP.Q.setValueAtTime(1.12, now);
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.0001, now);
+                noiseGain.gain.linearRampToValueAtTime(saxVolume * 0.12, now + 0.02);
+                noiseGain.gain.exponentialRampToValueAtTime(saxVolume * 0.04, now + 0.22);
+                noiseGain.gain.setValueAtTime(saxVolume * 0.032, naturalEnd - 0.3);
+                noiseGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+                noiseSource.connect(noiseHP); noiseHP.connect(noiseBP); noiseBP.connect(noiseGain); noiseGain.connect(hp);
+
+                osc1.start(now); osc2.start(now); osc3.start(now); vibrato.start(now); growl.start(now); noiseSource.start(now);
+                osc1.stop(naturalEnd + 0.05); osc2.stop(naturalEnd + 0.05); osc3.stop(naturalEnd + 0.05);
+                vibrato.stop(naturalEnd + 0.05); growl.stop(naturalEnd + 0.05); noiseSource.stop(naturalEnd + 0.05);
+
+                gameState.oscillators[voiceKey] = {
+                    oscillator: osc1,
+                    gainNode: toneGain,
+                    osc2: osc2,
+                    gain2: gain2,
+                    osc3: osc3,
+                    gain3: gain3,
+                    masterGain: masterGain,
+                    extraGainNodes: [vib1, vib2, growlDepth, noiseGain],
+                    extraOscillators: [vibrato, growl, noiseSource]
+                };
+                return;
+            }
+
+            const masterGain = ctx.createGain(); masterGain.connect(getAudioOutputNode(ctx));
+            const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.connect(masterGain);
+            const osc1 = ctx.createOscillator(); const gain1 = ctx.createGain(); osc1.connect(gain1); gain1.connect(filter);
+            const osc2 = ctx.createOscillator(); const gain2 = ctx.createGain(); osc2.connect(gain2); gain2.connect(filter);
+            let osc3 = null;
+            let gain3 = null;
+            {
+                const lowBoost = getPianoLowBoost(freq);
+                osc1.type = 'sine'; osc2.type = 'sine'; filter.frequency.setValueAtTime(getPianoFilterFreq(freq), now);
+                applySustainDecay(gain1, volume*0.28*lowBoost, now, 0.012, 0.32, 0.85, maxHoldSeconds);
+                applySustainDecay(gain2, volume*0.1*Math.min(lowBoost, 1.35), now, 0.012, 0.24, 0.78, maxHoldSeconds);
+                osc3 = ctx.createOscillator(); gain3 = ctx.createGain();
+                osc3.type = 'triangle'; osc3.frequency.setValueAtTime(freq*3, now); osc3.connect(gain3); gain3.connect(filter);
+                applySustainDecay(gain3, volume*0.086, now, 0.01, 0.16, 0.64, maxHoldSeconds);
+            }
+            osc1.frequency.setValueAtTime(freq, now); osc2.frequency.setValueAtTime(freq*2, now);
+            osc1.start(now); osc2.start(now);
+            if (osc3) osc3.start(now);
+            gameState.oscillators[voiceKey] = { oscillator: osc1, gainNode: gain1, osc2: osc2, gain2: gain2, osc3: osc3, gain3: gain3, masterGain: masterGain };
+        }
+        
+        function stopSustainSound(columnOrVoiceKey, fadeMs = 150, noteNum = null) {
+            const voiceKey = typeof columnOrVoiceKey === 'string'
+                ? columnOrVoiceKey
+                : getSustainVoiceKey(columnOrVoiceKey, noteNum);
+
+            if (gameState.oscillators[voiceKey]) {
+                const data = gameState.oscillators[voiceKey];
+                const now = gameState.audioContext.currentTime;
+                const fadeTime = fadeMs / 1000;
+                try {
+                    data.gainNode.gain.cancelScheduledValues(now); data.gainNode.gain.setValueAtTime(Math.max(data.gainNode.gain.value || 0.0001, 0.0001), now);
+                    data.gainNode.gain.linearRampToValueAtTime(0.0001, now+fadeTime); data.oscillator.stop(now+fadeTime+0.02);
+                    if (data.osc2) { data.gain2.gain.cancelScheduledValues(now); data.gain2.gain.setValueAtTime(data.gain2.gain.value || 0.0001, now);
+                    data.gain2.gain.linearRampToValueAtTime(0.0001, now+fadeTime); data.osc2.stop(now+fadeTime+0.02); }
+                    if (data.osc3) { data.gain3.gain.cancelScheduledValues(now); data.gain3.gain.setValueAtTime(data.gain3.gain.value || 0.0001, now);
+                    data.gain3.gain.linearRampToValueAtTime(0.0001, now+fadeTime); data.osc3.stop(now+fadeTime+0.02); }
+                    if (Array.isArray(data.extraGainNodes)) {
+                        for (const extraGain of data.extraGainNodes) {
+                            if (!extraGain || !extraGain.gain) continue;
+                            extraGain.gain.cancelScheduledValues(now);
+                            extraGain.gain.setValueAtTime(Math.max(extraGain.gain.value || 0.0001, 0.0001), now);
+                            extraGain.gain.linearRampToValueAtTime(0.0001, now + fadeTime);
+                        }
+                    }
+                    if (Array.isArray(data.extraOscillators)) {
+                        for (const extraOsc of data.extraOscillators) {
+                            if (!extraOsc || typeof extraOsc.stop !== 'function') continue;
+                            extraOsc.stop(now + fadeTime + 0.02);
+                        }
+                    }
+                    if (data.masterGain && data.masterGain.gain) {
+                        data.masterGain.gain.cancelScheduledValues(now);
+                        data.masterGain.gain.setValueAtTime(Math.max(data.masterGain.gain.value || 0.0001, 0.0001), now);
+                        data.masterGain.gain.linearRampToValueAtTime(0.0001, now + fadeTime);
+                    }
+                } catch(e) {}
+                delete gameState.oscillators[voiceKey];
+            }
+        }
+
+        function stopAllVoicesForColumn(column, fadeMs = 20) {
+            const keys = Object.keys(gameState.oscillators);
+            for (const key of keys) {
+                if (key === `col:${column}`) {
+                    stopSustainSound(key, fadeMs);
+                    continue;
+                }
+
+                if (key.startsWith('note:')) {
+                    const noteNumber = Number(key.slice(5));
+                    if (!Number.isNaN(noteNumber) && (noteNumber % 12) === column) {
+                        stopSustainSound(key, fadeMs);
+                    }
+                }
+            }
+        }
+        
+        // ============================================
+        // Tile Class// Tile Class
+        // ============================================
+        let tileIdCounter = 1;
+
+        class Tile {
+            constructor(column, lengthPixels = null, noteNum = null) {
+            this.id = tileIdCounter++;
+                this.column = column;
+                this.width = column_widths[column] - (BLACK_INDICES.includes(column) ? 2 : 4);
+                this.height = lengthPixels || TILE_SIZE;
+                
+                if (BLACK_INDICES.includes(column)) {
+                    this.x = column_x[column] + column_widths[column] - this.width;
+                } else {
+                    this.x = column_x[column] + 2;
+                }
+                
+                this.y = -this.height;
+                this.speed = gameState.tileSpeed;
+                this.hit = false;
+                this.missed = false;
+                this.holding = false;
+                this.latched = false;
+                this.fadeTimer = 0;
+                this.fadeDuration = 20;
+                this.noteNum = noteNum;
+                this.sustainVoiceKey = `hold:${this.id}`;
+                this.holdFramesRequired = lengthPixels ? Math.floor(lengthPixels / this.speed) : 0;
+                this.holdFramesElapsed = 0;
+            }
+            
+            update() {
+                if (!this.hit && !this.missed) {
+                    this.y += this.speed;
+                    
+                    if (this.holding && this.latched) {
+                        this.holdFramesElapsed++;
+                    }
+                    
+                    // Note: miss detection is now handled in gameLoop, not here
+                } else if (this.hit || this.missed) {
+                    this.y += this.speed;
+                    if (this.hit) {
+                        this.fadeTimer++;
+                    }
+                }
+            }
+            
+            draw() {
+                if (this.fadeTimer > this.fadeDuration) return;
+                
+                let color = TILE_COLOR;
+                let alpha = 1;
+                
+                if (this.hit) {
+                    alpha = 1 - (this.fadeTimer / this.fadeDuration);
+                    color = gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR;
+                } else if (this.missed) {
+                    color = TILE_MISS_COLOR;
+                } else if (this.holding) {
+                    color = gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR;
+                }
+                
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+                
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(this.x, this.y, this.width, this.height);
+                
+                // Draw label
+                const label = getColumnLabel(this.column);
+                ctx.fillStyle = '#000';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, this.x + this.width/2, this.y + this.height - 8);
+                
+                ctx.globalAlpha = 1;
+            }
+            
+            isInHitZone() {
+                return this.y + this.height >= BAR_Y - HIT_MARGIN_PX && 
+                       this.y <= BAR_Y + BAR_HEIGHT + HIT_MARGIN_PX;
+            }
+            
+            isHeadOnBar() {
+                const headY = this.y + this.height;
+                return headY >= BAR_Y - HIT_MARGIN_PX && headY <= BAR_Y + BAR_HEIGHT + HIT_MARGIN_PX;
+            }
+            
+            canBeHit() {
+                return !this.hit && !this.missed && this.isHeadOnBar();
+            }
+        }
+        
+        // ============================================
+        // Helper Functions
+        // ============================================
+        function getColumnLabel(column) {
+            switch(gameState.settings.labelMode) {
+                case 'notes': return NOTE_LABELS[column];
+                case 'straight': return STRAIGHT_LABELS[column];
+                default: return KEY_LABELS[column];
+            }
+        }
+
+        function getMidiNoteName(noteNum) {
+            const names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const safeNoteNum = Number.isFinite(noteNum) ? noteNum : 0;
+            const octave = Math.floor(safeNoteNum / 12) - 1;
+            return `${names[safeNoteNum % 12]}${octave}`;
+        }
+
+        function setLastNotePlayed(noteLabel) {
+            gameState.lastNotePlayed = noteLabel || 'None';
+            const el = document.getElementById('lastNotePlayed');
+            if (el) el.textContent = gameState.lastNotePlayed;
+        }
+
+        function getKeyRect(column) {
+            const isBlack = BLACK_INDICES.includes(column);
+            const x = isBlack
+                ? column_x[column] + column_widths[column] - (column_widths[column] - 2)
+                : column_x[column] + 2;
+            const width = column_widths[column] - (isBlack ? 2 : 4);
+            return { x, width, isBlack };
+        }
+
+        function spawnKeyParticles(column) {
+            const keyRect = getKeyRect(column);
+            const isWaterfallTheme = gameState.shop.selectedTheme === 1;
+            const isVolcanoTheme = gameState.shop.selectedTheme === 2;
+            const isElectricTheme = gameState.shop.selectedTheme === 3;
+
+            if (isWaterfallTheme) {
+                const dropletColors = ['#bfeaff', '#79c8ff', '#2f7fe3'];
+                const startY = BAR_Y - (0.8 + Math.random() * 1.2);
+                const centerBursts = KEY_PARTICLE_COUNT + 4;
+                const sideBursts = KEY_PARTICLE_COUNT;
+
+                const adjacentTargets = [column - 1, column + 1]
+                    .filter(idx => idx >= 0 && idx < NUM_COLUMNS && !gameState.pressedKeys.has(idx));
+
+                for (let i = 0; i < centerBursts; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY + Math.random() * 0.8,
+                        vx: (Math.random() - 0.5) * 0.18,
+                        vy: -(2.4 + Math.random() * 2.3),
+                        gravity: 0.18,
+                        startY,
+                        size: 1.4 + Math.random() * 1.6,
+                        life: KEY_PARTICLE_LIFETIME + 10,
+                        maxLife: KEY_PARTICLE_LIFETIME + 10,
+                        color: dropletColors[Math.floor(Math.random() * dropletColors.length)],
+                        particleType: 'waterfall-center'
+                    });
+                }
+
+                for (let i = 0; i < sideBursts && adjacentTargets.length > 0; i++) {
+                    const targetColumn = adjacentTargets[Math.floor(Math.random() * adjacentTargets.length)];
+                    const targetRect = getKeyRect(targetColumn);
+                    const targetX = targetRect.x + targetRect.width * (0.2 + Math.random() * 0.6);
+                    const flightFrames = 26 + Math.floor(Math.random() * 14);
+                    const gravity = 0.2 + Math.random() * 0.05;
+                    const launchX = keyRect.x + (Math.random() * keyRect.width);
+
+                    gameState.keyParticles.push({
+                        x: launchX,
+                        y: startY,
+                        vx: (targetX - launchX) / flightFrames,
+                        vy: -(0.5 * gravity * flightFrames),
+                        gravity,
+                        startY,
+                        size: 1.1 + Math.random() * 1.4,
+                        life: Math.max(KEY_PARTICLE_LIFETIME + 6, flightFrames + 6),
+                        maxLife: Math.max(KEY_PARTICLE_LIFETIME + 6, flightFrames + 6),
+                        color: dropletColors[Math.floor(Math.random() * dropletColors.length)],
+                        particleType: 'waterfall-arc'
+                    });
+                }
+                return;
+            }
+
+            if (isVolcanoTheme) {
+                const lavaColors = ['#ff3b1f', '#ff7a1a', '#ffd34d'];
+                const startY = BAR_Y - (0.5 + Math.random() * 1.0);
+                const smallSparkCount = KEY_PARTICLE_COUNT + 7;
+
+                for (let i = 0; i < smallSparkCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY,
+                        vx: (Math.random() - 0.5) * 0.9,
+                        vy: -(1.2 + Math.random() * 1.9),
+                        gravity: 0.17,
+                        startY,
+                        size: 0.9 + Math.random() * 1.4,
+                        life: KEY_PARTICLE_LIFETIME,
+                        maxLife: KEY_PARTICLE_LIFETIME,
+                        color: lavaColors[Math.floor(Math.random() * lavaColors.length)],
+                        particleType: 'volcano-small'
+                    });
+                }
+
+                const cooldown = gameState.volcanoBigCooldowns[column] || 0;
+                if (cooldown > 0) {
+                    gameState.volcanoBigCooldowns[column] = cooldown - 1;
+                } else if (Math.random() < 0.24) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    const color = lavaColors[Math.floor(Math.random() * lavaColors.length)];
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY,
+                        vx: (Math.random() - 0.5) * 0.06,
+                        vy: -(4.1 + Math.random() * 2.4),
+                        gravity: 0.24,
+                        startY,
+                        size: 3.0 + Math.random() * 2.2,
+                        life: KEY_PARTICLE_LIFETIME + 24,
+                        maxLife: KEY_PARTICLE_LIFETIME + 24,
+                        color,
+                        trail: [{ x: spawnX, y: startY }],
+                        particleType: 'volcano-big'
+                    });
+
+                    gameState.volcanoBigCooldowns[column] = 10 + Math.floor(Math.random() * 14);
+                }
+                return;
+            }
+
+            if (isElectricTheme) {
+                const startY = BAR_Y - (0.6 + Math.random() * 1.1);
+                const boltCount = Math.max(2, KEY_PARTICLE_COUNT - 1);
+
+                for (let i = 0; i < boltCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    const lifetime = KEY_PARTICLE_LIFETIME - 7 + Math.floor(Math.random() * 6);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY,
+                        vx: (Math.random() - 0.5) * 0.34,
+                        vy: -(2.2 + Math.random() * 2.0),
+                        gravity: 0.05,
+                        phase: Math.random() * Math.PI * 2,
+                        iconSize: 11 + Math.random() * 5,
+                        life: lifetime,
+                        maxLife: lifetime,
+                        color: '#ffe000',
+                        particleType: 'electric-icon'
+                    });
+                }
+
+                const flashSparkCount = Math.max(2, KEY_PARTICLE_COUNT - 1);
+                for (let i = 0; i < flashSparkCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: BAR_Y - (0.2 + Math.random() * 1.2),
+                        vx: (Math.random() - 0.5) * 1.15,
+                        vy: -(0.7 + Math.random() * 1.7),
+                        gravity: 0.06,
+                        size: 0.8 + Math.random() * 1.5,
+                        life: 10 + Math.floor(Math.random() * 7),
+                        maxLife: 10 + Math.floor(Math.random() * 7),
+                        color: '#fff87a',
+                        particleType: 'electric-spark'
+                    });
+                }
+                return;
+            }
+
+            const color = keyRect.isBlack ? '#9fc5ff' : '#f7f7ff';
+
+            for (let i = 0; i < KEY_PARTICLE_COUNT; i++) {
+                const horizontalPos = Math.random();
+                const spawnX = keyRect.x + (horizontalPos * keyRect.width);
+                const distanceFromCenter = Math.abs((horizontalPos - 0.5) * 2);
+                const arcHeight = 1 - (distanceFromCenter * distanceFromCenter);
+                const spawnY = BAR_Y + 0.8 - (arcHeight * 5.5) + ((Math.random() - 0.5) * 0.9);
+                const vx = ((horizontalPos - 0.5) * 0.28) + ((Math.random() - 0.5) * 0.18);
+                const vy = -(1.9 + Math.random() * 2.3);
+                gameState.keyParticles.push({
+                    x: spawnX,
+                    y: spawnY,
+                    vx,
+                    vy,
+                    anchorX: spawnX,
+                    anchorY: BAR_Y,
+                    prevX: spawnX,
+                    prevY: spawnY,
+                    lineWidth: 1.9 + Math.random() * 1.2,
+                    tailFactor: 5.0 + Math.random() * 2.4,
+                    life: KEY_PARTICLE_LIFETIME,
+                    maxLife: KEY_PARTICLE_LIFETIME,
+                    color,
+                    particleType: 'line'
+                });
+            }
+        }
+
+        function updateKeyParticles() {
+            for (let column = 0; column < NUM_COLUMNS; column++) {
+                if (!gameState.pressedKeys.has(column)) {
+                    gameState.keyParticleEmitTimers[column] = 0;
+                    gameState.volcanoBigCooldowns[column] = 0;
+                    continue;
+                }
+
+                if (gameState.keyParticleEmitTimers[column] <= 0) {
+                    spawnKeyParticles(column);
+                    gameState.keyParticleEmitTimers[column] = KEY_PARTICLE_EMIT_INTERVAL;
+                } else {
+                    gameState.keyParticleEmitTimers[column]--;
+                }
+            }
+
+            for (let i = gameState.keyParticles.length - 1; i >= 0; i--) {
+                const particle = gameState.keyParticles[i];
+                particle.prevX = particle.x;
+                particle.prevY = particle.y;
+                particle.x += particle.vx;
+                particle.y += particle.vy;
+                if (particle.particleType === 'waterfall-center' || particle.particleType === 'waterfall-arc') {
+                    particle.vy += particle.gravity || 0.18;
+                    particle.vx *= 0.992;
+
+                    if (particle.vy > 0 && particle.y >= (particle.startY ?? BAR_Y)) {
+                        gameState.keyParticles.splice(i, 1);
+                        continue;
+                    }
+                } else if (particle.particleType === 'volcano-big') {
+                    particle.vy += particle.gravity || 0.24;
+                    if (particle.vy > 0) {
+                        particle.vx *= 0.84;
+                        if (Math.abs(particle.vx) < 0.01) particle.vx = 0;
+                    } else {
+                        particle.vx *= 0.98;
+                    }
+
+                    if (Math.random() < 0.55) {
+                        gameState.keyParticles.push({
+                            x: particle.x + (Math.random() - 0.5) * (particle.size * 0.6),
+                            y: particle.y + (particle.size * 0.25),
+                            vx: (Math.random() - 0.5) * 0.22,
+                            vy: -(0.28 + Math.random() * 0.38),
+                            gravity: 0.01,
+                            size: 0.8 + Math.random() * 1.4,
+                            life: 8 + Math.floor(Math.random() * 8),
+                            maxLife: 8 + Math.floor(Math.random() * 8),
+                            color: 'rgba(255, 245, 230, 0.95)',
+                            particleType: 'volcano-steam'
+                        });
+                    }
+
+                    if (!particle.trail) particle.trail = [];
+                    particle.trail.push({ x: particle.x, y: particle.y });
+                    if (particle.trail.length > 10) particle.trail.shift();
+
+                    if (particle.vy > 0 && particle.y >= (particle.startY ?? BAR_Y)) {
+                        gameState.keyParticles.splice(i, 1);
+                        continue;
+                    }
+                } else if (particle.particleType === 'volcano-small') {
+                    particle.vy += particle.gravity || 0.17;
+                    particle.vx *= 0.992;
+
+                    if (particle.vy > 0 && particle.y >= ((particle.startY ?? BAR_Y) + 3)) {
+                        gameState.keyParticles.splice(i, 1);
+                        continue;
+                    }
+                } else if (particle.particleType === 'volcano-steam') {
+                    particle.vy -= 0.005;
+                    particle.vy += particle.gravity || 0.01;
+                    particle.vx *= 0.97;
+                } else if (particle.particleType === 'electric-icon') {
+                    particle.vy += particle.gravity || 0.03;
+                    particle.vx *= 0.985;
+                } else if (particle.particleType === 'electric-spark') {
+                    particle.vy += particle.gravity || 0.06;
+                    particle.vx *= 0.965;
+                } else {
+                    particle.vy += 0.03;
+                    particle.vx *= 0.992;
+                }
+                particle.life--;
+
+                if (particle.life <= 0 || particle.y > SCREEN_HEIGHT || particle.x < -10 || particle.x > SCREEN_WIDTH + 10) {
+                    gameState.keyParticles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawKeyParticles() {
+            for (const particle of gameState.keyParticles) {
+                const alpha = Math.max(0, particle.life / particle.maxLife);
+                ctx.globalAlpha = alpha;
+
+                if (particle.particleType === 'waterfall-center' || particle.particleType === 'waterfall-arc') {
+                    ctx.fillStyle = particle.color;
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size || 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                    continue;
+                }
+
+                if (particle.particleType === 'volcano-big') {
+                    const trail = particle.trail || [];
+                    for (let t = 1; t < trail.length; t++) {
+                        const start = trail[t - 1];
+                        const end = trail[t];
+                        const trailAlpha = alpha * (t / trail.length) * 0.75;
+                        ctx.globalAlpha = trailAlpha;
+                        ctx.strokeStyle = particle.color;
+                        ctx.lineWidth = 1.2 + (particle.size * (t / trail.length) * 0.9);
+                        ctx.beginPath();
+                        ctx.moveTo(start.x, start.y);
+                        ctx.lineTo(end.x, end.y);
+                        ctx.stroke();
+                    }
+
+                    ctx.globalAlpha = alpha;
+                    const sparkSize = particle.size || 3.2;
+                    const angle = Math.atan2(particle.vy, particle.vx) + (Math.PI / 2);
+                    ctx.save();
+                    ctx.translate(particle.x, particle.y);
+                    ctx.rotate(angle);
+                    ctx.fillStyle = particle.color;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -sparkSize * 1.85);
+                    ctx.quadraticCurveTo(sparkSize * 1.15, -sparkSize * 0.2, sparkSize * 0.85, sparkSize * 0.95);
+                    ctx.quadraticCurveTo(0, sparkSize * 1.4, -sparkSize * 0.85, sparkSize * 0.95);
+                    ctx.quadraticCurveTo(-sparkSize * 1.15, -sparkSize * 0.2, 0, -sparkSize * 1.85);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    ctx.globalAlpha = alpha * 0.82;
+                    ctx.fillStyle = '#ffe27a';
+                    ctx.beginPath();
+                    ctx.ellipse(0, sparkSize * 0.15, sparkSize * 0.42, sparkSize * 0.58, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    continue;
+                }
+
+                if (particle.particleType === 'volcano-small') {
+                    ctx.fillStyle = particle.color;
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size || 1.3, 0, Math.PI * 2);
+                    ctx.fill();
+                    continue;
+                }
+
+                if (particle.particleType === 'volcano-steam') {
+                    ctx.fillStyle = particle.color;
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size || 1.1, 0, Math.PI * 2);
+                    ctx.fill();
+                    continue;
+                }
+
+                if (particle.particleType === 'electric-icon') {
+                    const flash = 0.68 + (Math.sin((gameState.gameFrame * 0.6) + (particle.phase || 0)) * 0.32);
+                    const iconSize = particle.iconSize || 12;
+                    ctx.save();
+                    ctx.globalAlpha = Math.min(1, alpha * (0.72 + flash * 0.45));
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.font = `bold ${iconSize}px Segoe UI Emoji, Arial`;
+                    ctx.strokeStyle = '#ffb700';
+                    ctx.lineWidth = 1.1;
+                    ctx.strokeText('⚡', particle.x, particle.y);
+                    ctx.fillStyle = '#fff34a';
+                    ctx.fillText('⚡', particle.x, particle.y);
+                    ctx.restore();
+                    continue;
+                }
+
+                if (particle.particleType === 'electric-spark') {
+                    ctx.save();
+                    ctx.globalAlpha = alpha;
+                    ctx.fillStyle = particle.color || '#fff87a';
+                    ctx.shadowColor = '#ffe44d';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.arc(particle.x, particle.y, particle.size || 1.1, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    continue;
+                }
+
+                ctx.strokeStyle = particle.color;
+                ctx.lineWidth = particle.lineWidth;
+                const tailX = particle.x - (particle.vx * particle.tailFactor);
+                const tailY = particle.y - (particle.vy * particle.tailFactor);
+                ctx.beginPath();
+                ctx.moveTo(particle.anchorX ?? tailX, particle.anchorY ?? tailY);
+                ctx.lineTo(particle.x, particle.y);
+                ctx.stroke();
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        function runUiParticleLoop() {
+            if (gameState.state === 'playing') {
+                gameState.uiParticleLoopActive = false;
+                return;
+            }
+
+            if (gameState.keyParticles.length === 0 && gameState.pressedKeys.size === 0) {
+                gameState.uiParticleLoopActive = false;
+                drawGame();
+                return;
+            }
+
+            updateKeyParticles();
+            drawGame();
+            setTimeout(runUiParticleLoop, 1000 / FPS);
+        }
+
+        function ensureUiParticleLoop() {
+            if (gameState.state === 'playing' || gameState.uiParticleLoopActive) return;
+            gameState.uiParticleLoopActive = true;
+            runUiParticleLoop();
+        }
+        
+        function showJudgement(type) {
+            const el = document.getElementById('judgementDisplay');
+            el.textContent = type;
+            el.className = 'show ' + type.toLowerCase();
+            gameState.lastJudgement = type;
+            gameState.judgementTimer = 45;
+            
+            // Show combo multiplier when combo >= 5
+            const comboEl = document.getElementById('comboMultiplier');
+            if (gameState.combo >= 5) {
+                comboEl.textContent = `x${gameState.combo}`;
+                comboEl.classList.add('show');
+                comboEl.classList.toggle('perfect-outline', type === 'Perfect');
+                if (gameState.combo > gameState.lastShownMultiplier) {
+                    comboEl.classList.remove('rise');
+                    comboEl.offsetWidth;
+                    comboEl.classList.add('rise');
+                }
+                gameState.lastShownMultiplier = gameState.combo;
+            } else {
+                comboEl.classList.remove('show', 'rise', 'perfect-outline');
+                gameState.lastShownMultiplier = 0;
+            }
+        }
+        
+        function resetComboDisplay() {
+            const comboEl = document.getElementById('comboMultiplier');
+            comboEl.classList.remove('show', 'rise', 'perfect-outline');
+            gameState.lastShownMultiplier = 0;
+        }
+
+        function renderLives(breakingLifeNumber = null) {
+            const el = document.getElementById('livesDisplay');
+            if (!el) return;
+
+            let html = '';
+            for (let i = 1; i <= gameState.maxLives; i++) {
+                if (breakingLifeNumber === i) {
+                    html += '<span class="life-heart break">💔</span>';
+                } else if (i <= gameState.lives) {
+                    html += '<span class="life-heart">❤️</span>';
+                } else {
+                    html += '<span class="life-heart empty">🖤</span>';
+                }
+            }
+            el.innerHTML = html;
+        }
+
+        function loseLife(column = null, flashFrames = WRONG_KEY_FLASH_FRAMES) {
+            if (gameState.state !== 'playing' || gameState.settings.cheatsEnabled || gameState.lives <= 0) return;
+
+            const previousLives = gameState.lives;
+            gameState.lives = Math.max(0, gameState.lives - 1);
+            gameState.combo = 0;
+            resetComboDisplay();
+
+            if (Number.isInteger(column)) {
+                gameState.wrongKeyColumn = column;
+                gameState.missPending = true;
+                gameState.missTimer = 0;
+                gameState.missFlashFrames = Math.max(1, flashFrames || WRONG_KEY_FLASH_FRAMES);
+            }
+
+            if (gameState.livesAnimTimeout) {
+                clearTimeout(gameState.livesAnimTimeout);
+                gameState.livesAnimTimeout = null;
+            }
+
+            renderLives(previousLives);
+            gameState.livesAnimTimeout = setTimeout(() => {
+                renderLives();
+                gameState.livesAnimTimeout = null;
+            }, 420);
+
+            if (gameState.lives <= 0) {
+                endGame();
+            }
+        }
+        
+        function hideElement(id) { document.getElementById(id).classList.add('hidden'); }
+        function showElement(id) { document.getElementById(id).classList.remove('hidden'); }
+
+        function isElementVisible(id) {
+            const element = document.getElementById(id);
+            return !!element && !element.classList.contains('hidden');
+        }
+
+        function resetMenuInteractionState() {
+            gameState.tiles = [];
+            gameState.pressedKeys.clear();
+            gameState.keysCurrentlyPressed.clear();
+            gameState.pressedColumnCounts = Array(NUM_COLUMNS).fill(0);
+            gameState.keyParticles = [];
+            gameState.keyParticleEmitTimers = Array(NUM_COLUMNS).fill(0);
+            gameState.volcanoBigCooldowns = Array(NUM_COLUMNS).fill(0);
+            gameState.uiParticleLoopActive = false;
+            gameState.wrongKeyColumn = null;
+            gameState.missPending = false;
+            gameState.missTimer = 0;
+            gameState.missFlashFrames = WRONG_KEY_FLASH_FRAMES;
+            document.getElementById('midiFileInput').value = '';
+        }
+
+        function handleEscapeBackAction() {
+            if (isElementVisible('countdownOverlay')) return;
+
+            if (gameState.state === 'playing') {
+                pauseGame();
+                return;
+            }
+
+            if (isElementVisible('midiAnalysisOverlay')) {
+                closeMidiAnalysis();
+                return;
+            }
+
+            if (isElementVisible('settingsOverlay')) {
+                closeSettings();
+                return;
+            }
+
+            if (isElementVisible('shopOverlay')) {
+                closeShop();
+                return;
+            }
+
+            if (isElementVisible('pauseOverlay')) {
+                resumeGame();
+                return;
+            }
+
+            if (isElementVisible('playSelectOverlay') ||
+                isElementVisible('levelsOverlay') ||
+                isElementVisible('tutorialOverlay') ||
+                isElementVisible('gameOverOverlay') ||
+                isElementVisible('levelCompleteOverlay')) {
+                showMenu();
+            }
+        }
+        
+        // ============================================
+        // UI Navigation
+        // ============================================
+        function showMenu() {
+            gameState.state = 'menu';
+            resetMenuInteractionState();
+            hideElement('playSelectOverlay');
+            hideElement('levelsOverlay');
+            hideElement('shopOverlay');
+            hideElement('settingsOverlay');
+            hideElement('pauseOverlay');
+            hideElement('gameOverOverlay');
+            hideElement('levelCompleteOverlay');
+            hideElement('tutorialOverlay');
+            hideElement('midiAnalysisOverlay');
+            showElement('menuOverlay');
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('pauseBtn').style.display = 'none';
+            document.getElementById('infoText').style.display = 'block';
+        }
+        
+        function showPlaySelect() {
+            hideElement('menuOverlay');
+            showElement('playSelectOverlay');
+        }
+        
+        function showLevels() {
+            hideElement('menuOverlay');
+            hideElement('levelCompleteOverlay');
+            hideElement('midiAnalysisOverlay');
+            resetMenuInteractionState();
+            drawGame();
+            updateLevelStars();
+            setLevelMenuPreview(null);
+            updateRecentUploadsList();
+            showElement('levelsOverlay');
+        }
+        
+        function updateRecentUploadsList() {
+            const container = document.getElementById('recentUploadsContainer');
+            const recents = getRecentUploads().slice(0, 3);
+            
+            if (recents.length === 0) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            let html = '<p style="font-size: 12px; color: #aaa; margin-bottom: 8px;">Recent uploads:</p>';
+            recents.forEach(upload => {
+                html += `<button class="button" style="font-size: 11px; padding: 8px 12px; margin: 0 auto 6px; width: 280px; text-align: left; overflow: hidden; text-overflow: ellipsis; display: block;" onclick="loadRecentUpload('${upload.filename.replace(/'/g, "\\'")}')">${upload.filename}</button>`;
+            });
+            container.innerHTML = html;
+        }
+        
+        function showShop() {
+            gameState.shopReturnState = 'menu';
+            hideElement('menuOverlay');
+            switchShopTab('themes');
+            showElement('shopOverlay');
+        }
+
+        function showShopFromPause() {
+            gameState.shopReturnState = 'pause';
+            hideElement('pauseOverlay');
+            switchShopTab('themes');
+            showElement('shopOverlay');
+        }
+
+        function closeShop() {
+            hideElement('shopOverlay');
+            if (gameState.shopReturnState === 'pause') {
+                showElement('pauseOverlay');
+            } else {
+                showElement('menuOverlay');
+            }
+        }
+        
+        function showSettings() {
+            gameState.settingsReturnState = 'menu';
+            hideElement('menuOverlay');
+            switchSettingsTab('gameplay');
+            showElement('settingsOverlay');
+        }
+        
+        function showSettingsFromPause() {
+            gameState.settingsReturnState = 'pause';
+            hideElement('pauseOverlay');
+            switchSettingsTab('gameplay');
+            showElement('settingsOverlay');
+        }
+        
+        function closeSettings() {
+            hideElement('settingsOverlay');
+            if (gameState.settingsReturnState === 'pause') {
+                showElement('pauseOverlay');
+            } else {
+                showElement('menuOverlay');
+            }
+        }
+        
+        function updateLevelStars() {
+            for (let i = 1; i <= 2; i++) {
+                const stars = gameState.levelRatings[i] || 0;
+                const el = document.getElementById(`level${i}Stars`);
+                el.textContent = '\u2605'.repeat(stars) + '\u2606'.repeat(3-stars);
+            }
+        }
+
+        function setLevelMenuPreview(previewName) {
+            const overlay = document.getElementById('levelsOverlay');
+            if (!overlay) return;
+
+            overlay.classList.remove('preview-sunrise', 'preview-greenhills');
+            if (previewName === 'sunrise') {
+                overlay.classList.add('preview-sunrise');
+            } else if (previewName === 'greenhills') {
+                overlay.classList.add('preview-greenhills');
+            }
+        }
+
+        function setupLevelHoverBackgrounds() {
+            const levelOneButton = document.getElementById('level1Btn');
+            const levelTwoButton = document.getElementById('level2Btn');
+            const levelsOverlay = document.getElementById('levelsOverlay');
+
+            if (!levelOneButton || !levelTwoButton || !levelsOverlay) return;
+
+            levelOneButton.addEventListener('mouseenter', () => setLevelMenuPreview('sunrise'));
+            levelOneButton.addEventListener('focus', () => setLevelMenuPreview('sunrise'));
+
+            levelTwoButton.addEventListener('mouseenter', () => setLevelMenuPreview('greenhills'));
+            levelTwoButton.addEventListener('focus', () => setLevelMenuPreview('greenhills'));
+
+            levelOneButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
+            levelTwoButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
+            levelOneButton.addEventListener('blur', () => setLevelMenuPreview(null));
+            levelTwoButton.addEventListener('blur', () => setLevelMenuPreview(null));
+            levelsOverlay.addEventListener('mouseleave', () => setLevelMenuPreview(null));
+        }
+
+        const levelPreviewPreloadImages = [];
+
+        function preloadLevelPreviewImages() {
+            const previewSources = [
+                'Images/sunrise.png',
+                'Images/green%20hills.png',
+                'Images/green hills.png'
+            ];
+
+            for (const source of previewSources) {
+                const image = new Image();
+                image.src = source;
+                levelPreviewPreloadImages.push(image);
+            }
+        }
+        
+        // ============================================
+        // Shop System
+        // ============================================
+        function switchShopTab(tab) {
+            document.querySelectorAll('#shopOverlay .tab').forEach(t => t.classList.remove('active'));
+            const tabButtonIds = {
+                themes: 'shopThemesTab',
+                background: 'shopBgTab',
+                instruments: 'shopInstTab'
+            };
+            document.getElementById(tabButtonIds[tab])?.classList.add('active');
+            
+            const grid = document.getElementById('shopGrid');
+            grid.innerHTML = '';
+            
+            const items = {
+                themes: [
+                    { name: 'Default', icon: '⚙️' },
+                    { name: 'Waterfall', icon: '🌊' },
+                    { name: 'Vulcano', icon: '🌋' },
+                    { name: 'Electric', icon: '⚡' },
+                    { name: 'Ice', icon: '❄️' },
+                    { name: 'Steam', icon: '♨️' }
+                ],
+                background: [],
+                instruments: [
+                    { name: 'E-piano', icon: '🎹' },
+                    { name: 'Trompet', icon: '🎺' },
+                    { name: 'Saxofoon', icon: '🎷' }
+                ]
+            };
+            
+            const unlocked = {
+                themes: gameState.shop.unlockedThemes,
+                background: gameState.shop.unlockedBackgrounds,
+                instruments: gameState.shop.unlockedInstruments
+            };
+            
+            const selected = {
+                themes: gameState.shop.selectedTheme,
+                background: gameState.shop.selectedBackground,
+                instruments: gameState.shop.selectedInstrument
+            };
+            
+            items[tab].forEach((item, i) => {
+                const div = document.createElement('div');
+                div.className = 'shop-item';
+                if (!unlocked[tab][i]) div.classList.add('locked');
+                if (selected[tab] === i) div.classList.add('selected');
+
+                const label = typeof item === 'string' ? item : item.name;
+                const icon = typeof item === 'string' ? '' : (item.icon || '🎵');
+                div.innerHTML = `
+                    ${icon ? `<div class="shop-item-icon">${icon}</div>` : ''}
+                    <div class="shop-item-label">${label}</div>
+                    ${unlocked[tab][i] ? '' : '<div class="shop-item-lock">&#128274;</div>'}
+                `;
+                div.onclick = () => selectShopItem(tab, i);
+                grid.appendChild(div);
+            });
+        }
+        
+        function selectShopItem(tab, index) {
+            const unlocked = {
+                themes: gameState.shop.unlockedThemes,
+                background: gameState.shop.unlockedBackgrounds,
+                instruments: gameState.shop.unlockedInstruments
+            };
+            
+            if (!unlocked[tab][index]) return;
+            
+            if (tab === 'themes') gameState.shop.selectedTheme = index;
+            else if (tab === 'background') gameState.shop.selectedBackground = index;
+            else if (tab === 'instruments') gameState.shop.selectedInstrument = index;
+            
+            switchShopTab(tab);
+        }
+        
+        // ============================================
+        // Settings System
+        // ============================================
+        function switchSettingsTab(tab) {
+            document.querySelectorAll('#settingsOverlay .tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(`settings${tab.charAt(0).toUpperCase() + tab.slice(1)}Tab`)?.classList.add('active');
+            
+            const content = document.getElementById('settingsContent');
+            content.innerHTML = '';
+            
+            if (tab === 'gameplay') {
+                content.innerHTML = `
+                    <div class="setting-row">
+                        <label>Key Labels</label>
+                        <button class="button small" onclick="cycleKeyLabels()">${gameState.settings.labelMode.charAt(0).toUpperCase() + gameState.settings.labelMode.slice(1)}</button>
+                    </div>
+                    <div class="setting-row">
+                        <label>Cheats</label>
+                        <button class="button small" onclick="toggleCheats()">${gameState.settings.cheatsEnabled ? 'AAN' : 'UIT'}</button>
+                    </div>
+                    <div class="setting-row">
+                        <label>Easy Hold</label>
+                        <button class="button small" onclick="toggleEasyHold()">${gameState.settings.easyHoldEnabled ? 'ON' : 'OFF'}</button>
+                    </div>
+                `;
+            } else if (tab === 'visuals') {
+                content.innerHTML = `
+                    <div class="setting-row">
+                        <label>Blue Hit Effect</label>
+                        <button class="button small" onclick="toggleBlueHit()">${gameState.settings.blueHitEnabled ? 'ON' : 'OFF'}</button>
+                    </div>
+                `;
+            } else if (tab === 'audio') {
+                content.innerHTML = `
+                    <div class="setting-row">
+                        <label>Sound</label>
+                        <button class="button small" onclick="toggleSound()">${gameState.settings.soundEnabled ? 'ON' : 'OFF'}</button>
+                    </div>
+                    <div class="setting-row">
+                        <label>Volume</label>
+                        <input type="range" min="0" max="100" value="${Math.round(gameState.settings.volume * 100)}" oninput="setVolume(this.value)" onchange="setVolume(this.value)">
+                    </div>
+                    <div class="setting-row">
+                        <label>Metronome</label>
+                        <button class="button small" onclick="toggleMetronome()">${gameState.settings.metronomeEnabled ? 'ON' : 'OFF'}</button>
+                    </div>
+                `;
+            } else if (tab === 'midi') {
+                content.innerHTML = `
+                    <div class="setting-row">
+                        <label>MIDI Device</label>
+                        <button class="button small" onclick="searchMidiDevice()">Search</button>
+                    </div>
+                    <div class="setting-row">
+                        <label>Status</label>
+                        <span id="midiStatus">Not connected</span>
+                    </div>
+                    <div class="setting-row">
+                        <label>Last note played</label>
+                        <span id="lastNotePlayed">${gameState.lastNotePlayed || 'None'}</span>
+                    </div>
+                    <p style="font-size: 12px; color: #888; margin-top: 15px;">
+                        Connect a MIDI keyboard to play with real keys.
+                        Requires browser MIDI support.
+                    </p>
+                `;
+            }
+        }
+        
+        function cycleKeyLabels() {
+            const modes = ['keys', 'notes', 'straight'];
+            const idx = modes.indexOf(gameState.settings.labelMode);
+            gameState.settings.labelMode = modes[(idx + 1) % modes.length];
+            updateInfoText();
+            switchSettingsTab('gameplay');
+        }
+        
+        function toggleCheats() {
+            gameState.settings.cheatsEnabled = !gameState.settings.cheatsEnabled;
+            switchSettingsTab('gameplay');
+        }
+        
+        function toggleEasyHold() {
+            gameState.settings.easyHoldEnabled = !gameState.settings.easyHoldEnabled;
+            switchSettingsTab('gameplay');
+        }
+        
+        function toggleBlueHit() {
+            gameState.settings.blueHitEnabled = !gameState.settings.blueHitEnabled;
+            switchSettingsTab('visuals');
+        }
+        
+        function toggleSound() {
+            gameState.settings.soundEnabled = !gameState.settings.soundEnabled;
+            syncMasterVolume();
+            switchSettingsTab('audio');
+        }
+        
+        function setVolume(val) {
+            const parsed = Number(val);
+            const clamped = Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 50;
+            gameState.settings.volume = clamped / 100;
+            syncMasterVolume();
+        }
+        
+        function toggleMetronome() {
+            gameState.settings.metronomeEnabled = !gameState.settings.metronomeEnabled;
+            switchSettingsTab('audio');
+        }
+        
+        function updateInfoText() {
+            const labels = Object.values(gameState.settings.labelMode === 'notes' ? NOTE_LABELS : 
+                           gameState.settings.labelMode === 'straight' ? STRAIGHT_LABELS : KEY_LABELS);
+            document.getElementById('infoText').textContent = 'Keys: ' + labels.join(' ');
+        }
+        
+        // ============================================
+        // MIDI System (Web MIDI API)
+        // ============================================
+        let midiAccess = null;
+        let midiInput = null;
+        
+        async function searchMidiDevice() {
+            try {
+                if (navigator.requestMIDIAccess) {
+                    midiAccess = await navigator.requestMIDIAccess();
+                    const inputs = midiAccess.inputs.values();
+                    for (let input of inputs) {
+                        midiInput = input;
+                        midiInput.onmidimessage = handleMidiMessage;
+                        document.getElementById('midiStatus').textContent = `Connected: ${input.name}`;
+                        gameState.settings.labelMode = 'notes';
+                        updateInfoText();
+                        return;
+                    }
+                    document.getElementById('midiStatus').textContent = 'No MIDI device found';
+                } else {
+                    document.getElementById('midiStatus').textContent = 'MIDI not supported';
+                }
+            } catch (e) {
+                document.getElementById('midiStatus').textContent = 'MIDI access denied';
+            }
+        }
+        
+        function handleMidiMessage(message) {
+            const [status, note, velocity] = message.data;
+            const messageType = status & 0xF0;
+
+            // Control Change: Sustain pedal (CC64)
+            if (messageType === 0xB0 && note === 64) {
+                setSustainPedalState(velocity >= 64);
+                return;
+            }
+
+            const column = note % 12;
+            
+            if (messageType === 0x90 && velocity > 0) {
+                // Note on
+                handleKeyPress(column, note);
+            } else if (messageType === 0x80 || (messageType === 0x90 && velocity === 0)) {
+                // Note off
+                handleKeyRelease(column, note);
+            }
+        }
+
+        function setSustainPedalState(isDown) {
+            gameState.sustainPedalDown = isDown;
+
+            if (!isDown) {
+                // Pedal released: stop notes that were kept alive by sustain and are no longer physically held
+                for (const midiNote of Array.from(gameState.sustainedMidiNotes)) {
+                    if (!gameState.midiNotesCurrentlyPressed.has(midiNote)) {
+                        stopSustainSound(midiNote % 12, 150, midiNote);
+                        gameState.sustainedMidiNotes.delete(midiNote);
+                    }
+                }
+            }
+        }
+        
+        // ============================================
+        // MIDI File Upload & Parsing
+        // ============================================
+        let lastMidiAnalysis = null;
+        let pendingLevelStart = null;
+        let lastMidiData = null;
+        
+        function saveToRecentUploads(filename, midiData, analysis) {
+            let recent = JSON.parse(localStorage.getItem('recentMidiUploads') || '[]');
+            recent = recent.filter(r => r.filename !== filename);
+            recent.unshift({ filename, timestamp: Date.now() });
+            recent = recent.slice(0, 5);
+            localStorage.setItem('recentMidiUploads', JSON.stringify(recent));
+        }
+        
+        function getRecentUploads() {
+            return JSON.parse(localStorage.getItem('recentMidiUploads') || '[]');
+        }
+        
+        function loadRecentUpload(filename) {
+            const recents = getRecentUploads();
+            const found = recents.find(r => r.filename === filename);
+            if (!found) {
+                alert('Bestand niet gevonden in download history');
+                return;
+            }
+            const stored = JSON.parse(localStorage.getItem(`midiData_${filename}`) || 'null');
+            if (!stored) {
+                alert('Bestand data niet meer beschikbaar');
+                return;
+            }
+            gameState.levelNotes = stored.notes;
+            gameState.currentLevel = 'custom';
+            lastMidiAnalysis = stored.analysis;
+            pendingLevelStart = 'custom';
+            lastMidiData = stored;
+            hideElement('levelsOverlay');
+            showMidiAnalysis(filename);
+        }
+        
+        function handleMidiUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const result = parseMidiFile(data);
+                    if (result.notes.length > 0) {
+                        gameState.levelNotes = result.notes;
+                        gameState.currentLevel = 'custom';
+                        lastMidiAnalysis = result.analysis;
+                        pendingLevelStart = 'custom';
+                        lastMidiData = result;
+                        saveToRecentUploads(file.name, result.notes, result.analysis);
+                        localStorage.setItem(`midiData_${file.name}`, JSON.stringify(result));
+                        hideElement('levelsOverlay');
+                        showMidiAnalysis(file.name);
+                    } else {
+                        alert('Geen noten gevonden in MIDI bestand');
+                    }
+                } catch (err) {
+                    alert('Error parsing MIDI file: ' + err.message);
+                    console.error(err);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+        
+        function showMidiAnalysis(filename) {
+            const content = document.getElementById('midiAnalysisContent');
+            const a = lastMidiAnalysis;
+            
+            const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+            const noteCounts = {};
+            gameState.levelNotes.forEach(n => {
+                const name = noteNames[n.column];
+                noteCounts[name] = (noteCounts[name] || 0) + 1;
+            });
+            
+            const holdNotes = gameState.levelNotes.filter(n => n.lengthPixels > TILE_SIZE).length;
+            const regularNotes = gameState.levelNotes.length - holdNotes;
+            
+            content.innerHTML = `
+                <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #444;">
+                    <b style="color: #ffff00;">${filename}</b>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>
+                        <p><b style="color: #00aaff;">MIDI Info:</b></p>
+                        <p>Format: Type ${a.format}</p>
+                        <p>Tracks: ${a.numTracks}</p>
+                        <p>Tempo: ${a.bpm} BPM</p>
+                        <p>Ticks/Beat: ${a.ticksPerBeat}</p>
+                    </div>
+                    <div>
+                        <p><b style="color: #00ff00;">Noten Info:</b></p>
+                        <p>Totaal: ${gameState.levelNotes.length}</p>
+                        <p>Reguliere: ${regularNotes}</p>
+                        <p>Hold notes: ${holdNotes}</p>
+                        <p>Duur: ${(a.durationMs / 1000).toFixed(1)}s</p>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <p><b style="color: #ff00ff;">Noten per kolom:</b></p>
+                    <p style="font-size: 11px;">${Object.entries(noteCounts).map(([k,v]) => `${k}:${v}`).join(' | ')}</p>
+                </div>
+                <div style="margin-top: 15px; padding: 10px; background: #1a1a1a; border-radius: 5px;">
+                    <p style="color: #888; font-size: 11px;">Kortste noot: ${a.shortestNote.toFixed(0)}ms</p>
+                    <p style="color: #888; font-size: 11px;">Langste noot: ${a.longestNote.toFixed(0)}ms</p>
+                    <p style="color: #888; font-size: 11px;">Gemiddelde: ${a.avgNote.toFixed(0)}ms</p>
+                </div>
+                <div style="margin-top: 10px; padding: 10px; background: #2a1a1a; border-radius: 5px;">
+                    <p><b style="color: #ff6666;">Gefilterde noten:</b></p>
+                    <p style="color: #888; font-size: 11px;">Origineel: ${a.totalRaw || 'N/A'} | Na filtering: ${gameState.levelNotes.length} | Verwijderd: ${a.removedCount || 0}</p>
+                </div>
+            `;
+            
+            showElement('midiAnalysisOverlay');
+        }
+        
+        function closeMidiAnalysis() {
+            hideElement('midiAnalysisOverlay');
+            pendingLevelStart = null;
+            updateRecentUploadsList();
+            showElement('levelsOverlay');
+        }
+        
+        function startAfterAnalysis() {
+            hideElement('midiAnalysisOverlay');
+            gameState.useMidiSchedule = true;
+            startLevelGame();
+        }
+        
+        function parseMidiFile(data) {
+            // Volledige MIDI parser met note duration support
+            const rawEvents = [];
+            let i = 0;
+            
+            // Check header
+            if (String.fromCharCode(data[0], data[1], data[2], data[3]) !== 'MThd') {
+                throw new Error('Invalid MIDI file - geen MThd header');
+            }
+            
+            // Parse header
+            i = 8;
+            const format = (data[i] << 8) | data[i+1];
+            const numTracks = (data[i+2] << 8) | data[i+3];
+            const division = (data[i+4] << 8) | data[i+5];
+            i += 6;
+            
+            const ticksPerBeat = division;
+            let globalTempo = 500000; // Default 120 BPM (microseconds per beat)
+            
+            // Tempo changes map
+            const tempoChanges = [{tick: 0, tempo: globalTempo}];
+            
+            // First pass: collect all events with raw tick times
+            for (let t = 0; t < numTracks && i < data.length; t++) {
+                // Find track header
+                while (i < data.length - 8) {
+                    if (String.fromCharCode(data[i], data[i+1], data[i+2], data[i+3]) === 'MTrk') {
+                        break;
+                    }
+                    i++;
+                }
+                
+                if (i >= data.length - 8) break;
+                
+                i += 4;
+                const trackLen = (data[i] << 24) | (data[i+1] << 16) | (data[i+2] << 8) | data[i+3];
+                i += 4;
+                
+                const trackEnd = i + trackLen;
+                let trackTick = 0;
+                let lastStatus = 0;
+                
+                while (i < trackEnd && i < data.length) {
+                    // Read delta time (variable length)
+                    let delta = 0;
+                    while (i < data.length && (data[i] & 0x80)) {
+                        delta = (delta << 7) | (data[i] & 0x7F);
+                        i++;
+                    }
+                    if (i < data.length) {
+                        delta = (delta << 7) | data[i];
+                        i++;
+                    }
+                    trackTick += delta;
+                    
+                    if (i >= data.length) break;
+                    
+                    let status = data[i];
+                    if (status < 0x80) {
+                        // Running status
+                        status = lastStatus;
+                    } else {
+                        i++;
+                        lastStatus = status;
+                    }
+                    
+                    const type = status & 0xF0;
+                    const channel = status & 0x0F;
+                    
+                    if (type === 0x90 || type === 0x80) {
+                        // Note on/off
+                        if (i + 1 >= data.length) break;
+                        const note = data[i++];
+                        const velocity = data[i++];
+                        
+                        const isNoteOn = type === 0x90 && velocity > 0;
+                        rawEvents.push({
+                            tick: trackTick,
+                            type: isNoteOn ? 'noteOn' : 'noteOff',
+                            note: note,
+                            velocity: velocity,
+                            channel: channel
+                        });
+                    } else if (type === 0xA0 || type === 0xB0 || type === 0xE0) {
+                        i += 2;
+                    } else if (type === 0xC0 || type === 0xD0) {
+                        i += 1;
+                    } else if (status === 0xFF) {
+                        // Meta event
+                        if (i >= data.length) break;
+                        const metaType = data[i++];
+                        let len = 0;
+                        while (i < data.length && (data[i] & 0x80)) {
+                            len = (len << 7) | (data[i] & 0x7F);
+                            i++;
+                        }
+                        if (i < data.length) {
+                            len = (len << 7) | data[i];
+                            i++;
+                        }
+                        
+                        // Tempo change
+                        if (metaType === 0x51 && len === 3 && i + 2 < data.length) {
+                            const newTempo = (data[i] << 16) | (data[i+1] << 8) | data[i+2];
+                            tempoChanges.push({tick: trackTick, tempo: newTempo});
+                            globalTempo = newTempo; // Use last tempo for BPM display
+                        }
+                        i += len;
+                    } else if (status === 0xF0 || status === 0xF7) {
+                        // SysEx
+                        let len = 0;
+                        while (i < data.length && (data[i] & 0x80)) {
+                            len = (len << 7) | (data[i] & 0x7F);
+                            i++;
+                        }
+                        if (i < data.length) {
+                            len = (len << 7) | data[i];
+                            i++;
+                        }
+                        i += len;
+                    }
+                }
+            }
+            
+            // Sort tempo changes
+            tempoChanges.sort((a, b) => a.tick - b.tick);
+            
+            // Function to convert ticks to milliseconds
+            function ticksToMs(tick) {
+                let ms = 0;
+                let lastTick = 0;
+                let currentTempo = tempoChanges[0].tempo;
+                
+                for (let i = 1; i < tempoChanges.length; i++) {
+                    if (tempoChanges[i].tick >= tick) break;
+                    const deltaTicks = tempoChanges[i].tick - lastTick;
+                    ms += (deltaTicks / ticksPerBeat) * (currentTempo / 1000);
+                    lastTick = tempoChanges[i].tick;
+                    currentTempo = tempoChanges[i].tempo;
+                }
+                
+                const deltaTicks = tick - lastTick;
+                ms += (deltaTicks / ticksPerBeat) * (currentTempo / 1000);
+                return ms;
+            }
+            
+            // Sort events by tick
+            rawEvents.sort((a, b) => a.tick - b.tick || (a.type === 'noteOff' ? -1 : 1));
+            
+            // Match note-on with note-off to calculate durations
+            const activeNotes = {}; 
+            const rawNotes = [];
+            
+            for (const event of rawEvents) {
+                const key = `${event.channel}_${event.note}`;
+                
+                if (event.type === 'noteOn') {
+                    activeNotes[key] = {
+                        startTick: event.tick,
+                        startMs: ticksToMs(event.tick),
+                        note: event.note,
+                        velocity: event.velocity,
+                        channel: event.channel
+                    };
+                } else if (event.type === 'noteOff' && activeNotes[key]) {
+                    const startNote = activeNotes[key];
+                    const endMs = ticksToMs(event.tick);
+                    const durationMs = endMs - startNote.startMs;
+                    
+                    rawNotes.push({
+                        column: startNote.note % 12,
+                        time: startNote.startMs,
+                        note: startNote.note,
+                        durationMs: durationMs
+                    });
+                    
+                    delete activeNotes[key];
+                }
+            }
+            
+            // Handle notes that never got a note-off
+            for (const key in activeNotes) {
+                const startNote = activeNotes[key];
+                rawNotes.push({
+                    column: startNote.note % 12,
+                    time: startNote.startMs,
+                    note: startNote.note,
+                    durationMs: 100
+                });
+            }
+            
+            rawNotes.sort((a, b) => a.time - b.time);
+            const totalRaw = rawNotes.length;
+            
+            // FILTER 1: Remove duplicate notes at same time/column (30ms window)
+            const unique = {};
+            for (const n of rawNotes) {
+                const timeWindow = Math.round(n.time / 30) * 30;
+                const key = `${n.column}_${timeWindow}`;
+                if (!unique[key]) {
+                    unique[key] = { column: n.column, time: n.time, note: n.note, durationMs: n.durationMs, originalNotes: [n.note] };
+                } else {
+                    unique[key].originalNotes.push(n.note);
+                    unique[key].durationMs = Math.max(unique[key].durationMs, n.durationMs);
+                }
+            }
+            let notes = Object.values(unique).sort((a, b) => a.time - b.time);
+            const afterDedup = notes.length;
+            
+            // FILTER 2: Remove very short notes (<=30ms)
+            notes = notes.filter(n => n.durationMs > 30);
+            
+            // FILTER 3: Remove duplicate octaves (keep highest octave)
+            const filteredNotes = [];
+            for (const n of notes) {
+                const originalNotes = n.originalNotes || [n.note];
+                const byPitchClass = {};
+                for (const noteNum of originalNotes) {
+                    const pc = noteNum % 12;
+                    if (!byPitchClass[pc]) byPitchClass[pc] = [];
+                    byPitchClass[pc].push(noteNum);
+                }
+                const keptNotes = [];
+                for (const pc in byPitchClass) {
+                    const nl = byPitchClass[pc];
+                    keptNotes.push(nl.length > 1 ? Math.max(...nl) : nl[0]);
+                }
+                if (keptNotes.length > 0) {
+                    n.note = Math.max(...keptNotes);
+                    filteredNotes.push(n);
+                }
+            }
+            notes = filteredNotes;
+            
+            // FILTER 4: Shorten overlapping notes in same column (100ms gap)
+            const gapMs = 100;
+            const byColumn = {};
+            for (let i = 0; i < notes.length; i++) {
+                const col = notes[i].column;
+                if (!byColumn[col]) byColumn[col] = [];
+                byColumn[col].push(i);
+            }
+            for (const col in byColumn) {
+                const indices = byColumn[col].sort((a, b) => notes[a].time - notes[b].time);
+                for (let j = 0; j < indices.length - 1; j++) {
+                    const prev = notes[indices[j]];
+                    const next = notes[indices[j + 1]];
+                    const prevEnd = prev.time + prev.durationMs;
+                    const cutoff = next.time - gapMs;
+                    if (prevEnd > cutoff) prev.durationMs = Math.max(30, cutoff - prev.time);
+                }
+            }
+            
+            // FILTER 5: Re-check notes that became too short
+            notes = notes.filter(n => n.durationMs >= 30);
+            
+            // Convert to final format with pixel lengths
+            const finalNotes = notes.map(n => {
+                const durationFrames = n.durationMs * FPS / 1000;
+                let lengthPixels = Math.max(TILE_SIZE, durationFrames * gameState.tileSpeed);
+                lengthPixels = Math.min(lengthPixels, 400);
+                return { column: n.column, time: n.time, note: n.note, durationMs: n.durationMs, lengthPixels: lengthPixels };
+            });
+            
+            // Calculate analysis stats
+            const durations = finalNotes.map(n => n.durationMs).filter(d => d > 0);
+            const maxTime = finalNotes.length > 0 ? Math.max(...finalNotes.map(n => n.time + n.durationMs)) : 0;
+            
+            const analysis = {
+                format: format,
+                numTracks: numTracks,
+                ticksPerBeat: ticksPerBeat,
+                bpm: Math.round(60000000 / globalTempo),
+                totalNotes: finalNotes.length,
+                totalRaw: totalRaw,
+                afterDedup: afterDedup,
+                removedCount: totalRaw - finalNotes.length,
+                durationMs: maxTime,
+                shortestNote: durations.length > 0 ? Math.min(...durations) : 0,
+                longestNote: durations.length > 0 ? Math.max(...durations) : 0,
+                avgNote: durations.length > 0 ? durations.reduce((a,b) => a+b, 0) / durations.length : 0,
+                tempoChanges: tempoChanges.length
+            };
+            
+            // Convert to frame-based spawning
+            const frameNotes = finalNotes.map(n => ({
+                column: n.column,
+                frame: Math.floor(n.time / (1000 / FPS)),
+                note: n.note,
+                durationMs: n.durationMs,
+                lengthPixels: n.lengthPixels
+            }));
+            
+            console.log('MIDI Analysis:', analysis);
+            console.log('Sample notes:', frameNotes.slice(0, 10));
+            
+            return {
+                notes: frameNotes,
+                analysis: analysis
+            };
+
+        }
+        
+        // ============================================
+        // Game Control
+        // ============================================
+        function startFreePlay() {
+            hideElement('playSelectOverlay');
+            gameState.currentLevel = null;
+            gameState.useMidiSchedule = false;
+            gameState.tutorialMode = false;
+            gameState.levelNotes = [];
+            startNewGame();
+        }
+        
+        function startTutorial() {
+            hideElement('playSelectOverlay');
+            gameState.tutorialMode = true;
+            gameState.tutorialStep = 0;
+            gameState.currentLevel = null;
+            gameState.useMidiSchedule = true;
+            
+            // Tutorial noten: C-E-G akkoord (kolommen 0, 4, 7) - zoals Python versie
+            gameState.levelNotes = [
+                { column: 0, frame: 60, note: 48, lengthPixels: TILE_SIZE },  // C
+                { column: 4, frame: 90, note: 52, lengthPixels: TILE_SIZE },  // E  
+                { column: 7, frame: 120, note: 55, lengthPixels: TILE_SIZE }, // G
+                { column: 0, frame: 180, note: 48, lengthPixels: 80 },        // C (hold)
+                { column: 4, frame: 240, note: 52, lengthPixels: TILE_SIZE }, // E
+                { column: 7, frame: 270, note: 55, lengthPixels: TILE_SIZE }, // G
+            ];
+            
+            // Start welcome animatie
+            showTutorialWelcome();
+        }
+        
+        function showTutorialWelcome() {
+            const tutorialText = document.getElementById('tutorialText');
+            tutorialText.innerHTML = `
+                <h2 style="color: #ffff00; margin-bottom: 15px; animation: slideDown 0.8s ease-out;">Welcome to Fallin' Keys!</h2>
+                <p style="margin-top: 15px;">Learn how to play in this quick tutorial.</p>
+            `;
+            document.querySelector('#tutorialOverlay button').textContent = 'Start Tutorial';
+            showElement('tutorialOverlay');
+        }
+        
+        function continueTutorial() {
+            gameState.tutorialStep++;
+            
+            if (gameState.tutorialStep === 1) {
+                // Start de tutorial gameplay
+                hideElement('tutorialOverlay');
+                startNewGame();
+            } else if (gameState.tutorialStep === 100) {
+                // Tutorial complete - back to menu
+                hideElement('tutorialOverlay');
+                gameState.tutorialMode = false;
+                showMenu();
+            } else {
+                // Intermediate steps or unknown - go back to menu
+                hideElement('tutorialOverlay');
+                hideElement('pauseOverlay');
+                gameState.tutorialMode = false;
+                showMenu();
+            }
+        }
+        
+        async function loadMidiFromCandidates(candidatePaths) {
+            let lastError = null;
+
+            for (const midiPath of candidatePaths) {
+                try {
+                    const response = await fetch(midiPath);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status} (${midiPath})`);
+                    }
+                    const arrayBuffer = await response.arrayBuffer();
+                    return new Uint8Array(arrayBuffer);
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+
+            throw lastError || new Error('Unknown MIDI loading error');
+        }
+
+        async function startLevel(levelNum) {
+            hideElement('levelsOverlay');
+            gameState.currentLevel = levelNum;
+            gameState.tutorialMode = false;
+            
+            // MIDI bestandsnamen voor elk level
+            const levelFileNames = {
+                1: 'Sunrise.mid',
+                2: 'Green Hills.mid'
+            };
+            const levelNames = {
+                1: 'Sunrise.mid',
+                2: 'Green Hills.mid'
+            };
+            
+            const levelFileName = levelFileNames[levelNum];
+            
+            if (levelFileName) {
+                try {
+                    const baseCandidates = [
+                        `Levels/${levelFileName}`,
+                        `./Levels/${levelFileName}`,
+                        `../Levels/${levelFileName}`
+                    ];
+                    const encodedCandidates = baseCandidates.map(path => encodeURI(path));
+                    const allCandidates = [...new Set([...baseCandidates, ...encodedCandidates])];
+                    const data = await loadMidiFromCandidates(allCandidates);
+                    const result = parseMidiFile(data);
+                    
+                    if (result.notes.length > 0) {
+                        gameState.levelNotes = result.notes;
+                        gameState.useMidiSchedule = true;
+                        lastMidiAnalysis = result.analysis;
+                        pendingLevelStart = levelNum;
+                        showMidiAnalysis(levelNames[levelNum]);
+                    } else {
+                        alert('Geen noten gevonden in MIDI bestand');
+                        showElement('levelsOverlay');
+                    }
+                } catch (err) {
+                    console.error('Error loading MIDI:', err);
+                    if (window.location.protocol === 'file:') {
+                        alert('Levels via MIDI laden werkt niet vanuit een lokaal bestand (file://). De level start nu met een fallback patroon. Gebruik localhost (bijv. Live Server) voor de echte MIDI levels.');
+                        gameState.levelNotes = generateLevelPattern(levelNum);
+                        gameState.useMidiSchedule = true;
+                        startLevelGame();
+                    } else {
+                        alert('Kon MIDI bestand niet laden: ' + err.message + '\nDe level start nu met een fallback patroon.');
+                        gameState.levelNotes = generateLevelPattern(levelNum);
+                        gameState.useMidiSchedule = true;
+                        startLevelGame();
+                    }
+                }
+            } else {
+                // Fallback naar gegenereerd pattern
+                gameState.levelNotes = generateLevelPattern(levelNum);
+                gameState.useMidiSchedule = true;
+                startLevelGame();
+            }
+        }
+        
+        function generateLevelPattern(level) {
+            const notes = [];
+            const duration = level === 1 ? 30 : 45; // seconds
+            const density = level === 1 ? 1.5 : 2; // notes per second
+            
+            // Simple melody pattern
+            const melodies = {
+                1: [0, 2, 4, 5, 7, 5, 4, 2], // C D E F G F E D
+                2: [0, 4, 7, 4, 2, 5, 9, 5, 4, 7, 11, 7] // More complex
+            };
+            
+            const melody = melodies[level];
+            let time = 2000; // Start after 2 seconds
+            
+            for (let i = 0; i < duration * density; i++) {
+                // Af en toe hold notes toevoegen
+                const isHold = Math.random() < 0.15;
+                const holdDuration = isHold ? 300 + Math.random() * 500 : 100;
+                const lengthPixels = Math.max(TILE_SIZE, holdDuration * FPS / 1000 * gameState.tileSpeed);
+                
+                notes.push({
+                    column: melody[i % melody.length],
+                    frame: Math.floor(time / (1000 / FPS)),
+                    note: 48 + melody[i % melody.length],
+                    durationMs: holdDuration,
+                    lengthPixels: lengthPixels
+                });
+                time += 1000 / density + Math.random() * 200;
+            }
+            
+            return notes;
+        }
+        
+        function startLevelGame() {
+            gameState.levelNoteIndex = 0;
+            startNewGame();
+        }
+        
+        function startNewGame() {
+            // Start a new game without countdown (countdown only on resume)
+            gameState.state = 'playing';
+            gameState.score = 0;
+            gameState.combo = 0;
+            gameState.maxCombo = 0;
+            gameState.tiles = [];
+            gameState.pressedKeys.clear();
+            gameState.keysCurrentlyPressed.clear();
+            gameState.midiNotesCurrentlyPressed.clear();
+            gameState.sustainedMidiNotes.clear();
+            gameState.sustainPedalDown = false;
+            gameState.pressedColumnCounts = Array(NUM_COLUMNS).fill(0);
+            gameState.spawnCounter = 0;
+            gameState.gameFrame = 0;
+            gameState.activeHolds = {};
+            gameState.lives = gameState.maxLives;
+            
+            // Reset miss state
+            gameState.missPending = false;
+            gameState.missTimer = 0;
+            gameState.missFlashFrames = WRONG_KEY_FLASH_FRAMES;
+            gameState.wrongKeyColumn = null;
+            
+            hideElement('menuOverlay');
+            hideElement('playSelectOverlay');
+            hideElement('gameOverOverlay');
+            hideElement('levelCompleteOverlay');
+            
+            document.getElementById('hud').style.display = 'flex';
+            document.getElementById('pauseBtn').style.display = 'block';
+            document.getElementById('infoText').style.display = 'none';
+            document.getElementById('comboMultiplier').classList.remove('show', 'perfect-outline');
+            renderLives();
+            
+            // Draw initial game background
+            drawGame();
+            
+            initAudio();
+            
+            // Start directly
+            gameState.gameLoopToken++;
+            gameLoop(gameState.gameLoopToken);
+        }
+        
+        function runCountdown(onComplete) {
+            const countdownText = document.getElementById('countdownText');
+            
+            if (gameState.countdownValue > 0) {
+                countdownText.textContent = gameState.countdownValue;
+                // Reset animation
+                countdownText.style.animation = 'none';
+                countdownText.offsetHeight; // Trigger reflow
+                countdownText.style.animation = 'countPulse 0.5s ease-out';
+                
+                gameState.countdownValue--;
+                setTimeout(() => runCountdown(onComplete), 600);
+            } else {
+                countdownText.textContent = 'GO!';
+                countdownText.style.animation = 'none';
+                countdownText.offsetHeight;
+                countdownText.style.animation = 'countPulse 0.5s ease-out';
+                
+                setTimeout(() => {
+                    hideElement('countdownOverlay');
+                    onComplete();
+                }, 500);
+            }
+        }
+
+        function updateCountdown() {
+            runCountdown(startGameplay);
+        }
+        
+        function startGameplay() {
+            gameState.state = 'playing';
+            document.getElementById('pauseBtn').style.display = 'block';
+            gameState.gameLoopToken++;
+            gameLoop(gameState.gameLoopToken);
+        }
+        
+        function pauseGame() {
+            if (gameState.state !== 'playing') return;
+            gameState.state = 'paused';
+            stopAllSounds();
+            showElement('pauseOverlay');
+        }
+        
+        function resumeGame() {
+            hideElement('pauseOverlay');
+            // Start countdown before resuming (like Python version)
+            gameState.countdownValue = 3;
+            showElement('countdownOverlay');
+            updateResumeCountdown();
+        }
+        
+        function updateResumeCountdown() {
+            runCountdown(() => {
+                gameState.state = 'playing';
+                gameState.gameLoopToken++;
+                gameLoop(gameState.gameLoopToken);
+            });
+        }
+        
+        function returnToMenu() {
+            stopAllSounds();
+            hideElement('pauseOverlay');
+            showMenu();
+        }
+        
+        function stopAllSounds() {
+            for (const voiceKey of Object.keys(gameState.oscillators)) {
+                stopSustainSound(voiceKey);
+            }
+            gameState.sustainedMidiNotes.clear();
+            gameState.sustainPedalDown = false;
+        }
+        
+        function endGame() {
+            gameState.state = 'gameover';
+            stopAllSounds();
+            resetComboDisplay();
+            
+            // In tutorial mode, show a friendly message instead of harsh "Game Over"
+            if (gameState.tutorialMode) {
+                document.getElementById('tutorialText').innerHTML = `
+                    <h2 style="color: #ffaa00; margin-bottom: 15px;">Oops!</h2>
+                    <p style="margin-top: 10px;">Don't worry, practice makes perfect!</p>
+                    <p style="margin-top: 15px;">Try again or explore the menu.</p>
+                `;
+                document.querySelector('#tutorialOverlay button').textContent = 'Back to Menu';
+                gameState.tutorialStep = 99;
+                showElement('tutorialOverlay');
+                document.getElementById('hud').style.display = 'none';
+                document.getElementById('pauseBtn').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('finalScore').textContent = `Score: ${gameState.score}`;
+            document.getElementById('finalCombo').textContent = `Max Combo: ${gameState.maxCombo}x`;
+            
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('pauseBtn').style.display = 'none';
+            showElement('gameOverOverlay');
+        }
+        
+        function levelComplete() {
+            gameState.state = 'levelcomplete';
+            stopAllSounds();
+            resetComboDisplay();
+            const cheatsActive = !!gameState.settings.cheatsEnabled;
+            
+            // Tutorial completion - show tutorial complete screen
+            if (gameState.tutorialMode) {
+                document.getElementById('tutorialText').innerHTML = `
+                    <h2 style="color: #00ff00; margin-bottom: 15px;">Tutorial Complete!</h2>
+                    <p style="margin-top: 10px;">You've learned the basics.</p>
+                    <p style="margin-top: 15px;"><b>Tips:</b></p>
+                    <p>&bull; Hit tiles when they reach the bar</p>
+                    <p>&bull; Hold long tiles until they pass</p>
+                    <p>&bull; Build combos for higher scores!</p>
+                `;
+                document.querySelector('#tutorialOverlay button').textContent = 'Back to Menu';
+                gameState.tutorialStep = 99; // Mark as final step
+                showElement('tutorialOverlay');
+                document.getElementById('hud').style.display = 'none';
+                document.getElementById('pauseBtn').style.display = 'none';
+                return;
+            }
+            
+            // Calculate stars based on percentage:
+            // 3 stars: >= 80% of max score
+            // 2 stars: >= 66% of max score (avg Great)
+            // 1 star: >= 33% of max score (avg Allright)
+            // 0 stars: < 33%
+            
+            const totalNotes = gameState.levelNotes.length;
+            const maxScore = totalNotes * 3;  // All Perfect
+            const thresholds = {
+                threeStar: maxScore * 0.80,   // 80% for 3 stars
+                twoStar: maxScore * 0.66,     // 66% for 2 stars
+                oneStar: maxScore * 0.33      // 33% for 1 star
+            };
+            
+            let stars = 0;
+            if (gameState.score >= thresholds.threeStar) {
+                stars = 3;
+            } else if (gameState.score >= thresholds.twoStar) {
+                stars = 2;
+            } else if (gameState.score >= thresholds.oneStar) {
+                stars = 1;
+            } else {
+                stars = 0;
+            }
+
+            if (cheatsActive) {
+                stars = 0;
+            }
+            
+            // Save rating (only if better than previous)
+            if (!cheatsActive && gameState.currentLevel && typeof gameState.currentLevel === 'number') {
+                const currentBest = gameState.levelRatings[gameState.currentLevel] || 0;
+                if (stars > currentBest) {
+                    gameState.levelRatings[gameState.currentLevel] = stars;
+                }
+            }
+            
+            // Show score info
+            const percentStr = totalNotes > 0 ? Math.round((gameState.score / maxScore) * 100) : 0;
+            document.getElementById('levelScore').textContent = cheatsActive
+                ? `Score: ${gameState.score} / ${maxScore} (${percentStr}%) - Cheats actief: geen sterren`
+                : `Score: ${gameState.score} / ${maxScore} (${percentStr}%)`;
+            document.getElementById('levelStars').textContent = '\u2605'.repeat(stars) + '\u2606'.repeat(3 - stars);
+            
+            document.getElementById('hud').style.display = 'none';
+            document.getElementById('pauseBtn').style.display = 'none';
+            const levelCompleteOverlay = document.getElementById('levelCompleteOverlay');
+            levelCompleteOverlay.classList.remove('fade-in');
+            showElement('levelCompleteOverlay');
+            levelCompleteOverlay.offsetWidth;
+            levelCompleteOverlay.classList.add('fade-in');
+        }
+        
+        function restartGame() {
+            hideElement('gameOverOverlay');
+            hideElement('levelCompleteOverlay');
+            
+            if (gameState.currentLevel || gameState.levelNotes.length > 0) {
+                startLevelGame();
+            } else {
+                startFreePlay();
+            }
+        }
+        
+        // ============================================
+        // Input Handling
+        // ============================================
+        function handleKeyPress(column, noteNum = null) {
+            const isMidiInput = noteNum !== null && noteNum !== undefined;
+            if (isMidiInput) {
+                if (gameState.midiNotesCurrentlyPressed.has(noteNum)) return;
+                gameState.midiNotesCurrentlyPressed.add(noteNum);
+                gameState.sustainedMidiNotes.delete(noteNum);
+            } else {
+                if (gameState.keysCurrentlyPressed.has(column)) return;
+                gameState.keysCurrentlyPressed.add(column);
+            }
+
+            gameState.pressedColumnCounts[column] = (gameState.pressedColumnCounts[column] || 0) + 1;
+            gameState.pressedKeys.add(column);
+            spawnKeyParticles(column);
+
+            if (noteNum !== null && noteNum !== undefined) {
+                setLastNotePlayed(getMidiNoteName(noteNum));
+            } else {
+                setLastNotePlayed(NOTE_LABELS[column] || 'None');
+            }
+            
+            // Always play sound when keys are pressed (menu or game)
+            startSustainSound(column, noteNum);
+            
+            // If in game, check for tile hit
+            if (gameState.state === 'playing') {
+                checkTileHit(column);
+            }
+            
+            // Redraw to show pressed key visual
+            if (gameState.state !== 'playing') {
+                drawGame();
+                ensureUiParticleLoop();
+            }
+        }
+        
+        function handleKeyRelease(column, noteNum = null) {
+            const isMidiInput = noteNum !== null && noteNum !== undefined;
+            if (isMidiInput) {
+                gameState.midiNotesCurrentlyPressed.delete(noteNum);
+            } else {
+                gameState.keysCurrentlyPressed.delete(column);
+            }
+
+            gameState.pressedColumnCounts[column] = Math.max(0, (gameState.pressedColumnCounts[column] || 0) - 1);
+            if (gameState.pressedColumnCounts[column] === 0) {
+                gameState.pressedKeys.delete(column);
+            }
+            
+            // Stop sound (or keep ringing while sustain pedal is down for MIDI input)
+            if (isMidiInput && gameState.sustainPedalDown) {
+                gameState.sustainedMidiNotes.add(noteNum);
+            } else {
+                stopSustainSound(column, isMidiInput ? 120 : 20, noteNum);
+                if (!isMidiInput) {
+                    stopAllVoicesForColumn(column, 20);
+                }
+            }
+            
+            // Handle hold note release
+            if (gameState.state === 'playing' && gameState.activeHolds[column] && !gameState.settings.easyHoldEnabled) {
+                const tile = gameState.activeHolds[column];
+                if (!tile.hit && !tile.missed) {
+                    scoreHoldRelease(tile, column);
+                }
+            }
+            
+            // Redraw to show released key visual
+            if (gameState.state !== 'playing') {
+                drawGame();
+            }
+        }
+        
+        function checkTileHit(column) {
+            // Find hittable tiles in this column
+            // With cheats: any tile can be hit (timing doesn't matter)
+            // Without cheats: only tiles in the hit zone
+            let hittableTiles;
+            if (gameState.settings.cheatsEnabled) {
+                hittableTiles = gameState.tiles.filter(t => 
+                    t.column === column && !t.hit && !t.missed && !t.holding
+                ).sort((a, b) => b.y - a.y);
+            } else {
+                hittableTiles = gameState.tiles.filter(t => 
+                    t.column === column && t.canBeHit() && !t.holding
+                ).sort((a, b) => b.y - a.y);
+            }
+            
+            if (hittableTiles.length > 0) {
+                const tile = hittableTiles[0];
+                
+                // Check if this is a hold note (long tile)
+                if (tile.holdFramesRequired > 10) {
+                    tile.holding = true;
+                    tile.latched = true;
+                    gameState.activeHolds[column] = tile;
+                    // Restart sustain with correct MIDI pitch
+                    const holdSeconds = Math.max(0.35, (tile.holdFramesRequired / FPS) + 0.35);
+                    startSustainSound(column, tile.noteNum, holdSeconds, tile.sustainVoiceKey);
+                    // No score on hold start - score comes on release
+                } else {
+                    // Regular tap note - match Python scoring exactly
+                    tile.hit = true;
+                    
+                    // Calculate judgement based on timing (distance from BAR_Y)
+                    const headY = tile.y + tile.height;
+                    const PERFECT_MARGIN = 20; // PERFECT_RELEASE_MARGIN_PX
+                    const GREAT_MARGIN = 45;   // HOLD_RELEASE_MARGIN_PX
+                    
+                    const distance = Math.abs(headY - BAR_Y);
+                    let judgement, score;
+                    
+                    if (distance <= PERFECT_MARGIN) {
+                        judgement = 'Perfect';
+                        score = 3;
+                    } else if (distance <= GREAT_MARGIN) {
+                        judgement = 'Great';
+                        score = 2;
+                    } else {
+                        judgement = 'Allright';
+                        score = 1;
+                    }
+                    
+                    gameState.score += score;
+                    gameState.combo++;
+                    gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
+                    showJudgement(judgement);
+                    
+                    // Stop the key press sustain and play tap with correct MIDI pitch
+                    stopSustainSound(column);
+                    playNote(column, 0.2, tile.noteNum);
+                }
+            } else {
+                // Wrong key - no tile in hit zone
+                if (!gameState.settings.cheatsEnabled) {
+                    loseLife(column);
+                }
+            }
+        }
+        
+        function scoreHoldRelease(tile, column) {
+            // Match original Python logic: no death on early release, just lower score
+            // Perfect: held >= 85% of required time (+3 points)
+            // Great: held >= 60% of required time (+2 points)  
+            // Allright: released early (+1 point, NO game over)
+            
+            const progress = tile.holdFramesElapsed / tile.holdFramesRequired;
+            
+            tile.hit = true; // Always mark as hit, never as missed
+            
+            // Stop the sustain sound when releasing
+            stopSustainSound(tile.sustainVoiceKey || getSustainVoiceKey(column, tile.noteNum), 20);
+            
+            if (progress >= 0.85) {
+                gameState.score += 3;
+                gameState.combo++;
+                gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
+                showJudgement('Perfect');
+            } else if (progress >= 0.6) {
+                gameState.score += 2;
+                gameState.combo++;
+                gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
+                showJudgement('Great');
+            } else {
+                // Early release: still get points, no game over
+                gameState.score += 1;
+                gameState.combo++;
+                gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
+                showJudgement('Allright');
+            }
+            
+            delete gameState.activeHolds[column];
+        }
+        
+        // ============================================
+        // Drawing
+        // ============================================
+        function drawGame() {
+            // Clear
+            ctx.fillStyle = '#323232';
+            ctx.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+            
+            // Draw column backgrounds
+            for (let i = 0; i < NUM_COLUMNS; i++) {
+                const isBlack = BLACK_INDICES.includes(i);
+                ctx.fillStyle = isBlack ? '#282828' : '#222222';
+                ctx.fillRect(column_x[i], 0, column_widths[i], SCREEN_HEIGHT);
+                
+                // Column dividers
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(column_x[i], 0);
+                ctx.lineTo(column_x[i], SCREEN_HEIGHT);
+                ctx.stroke();
+            }
+            
+            // Draw tiles
+            for (let tile of gameState.tiles) {
+                tile.draw();
+            }
+            
+            // Draw hit zone
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(0, BAR_Y, SCREEN_WIDTH, BAR_HEIGHT);
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(0, BAR_Y, SCREEN_WIDTH, BAR_HEIGHT);
+
+            // Draw piano keys
+            for (let i = 0; i < NUM_COLUMNS; i++) {
+                const isBlack = BLACK_INDICES.includes(i);
+                const isPressed = gameState.pressedKeys.has(i);
+                const isWrongKey = gameState.missPending && gameState.wrongKeyColumn === i;
+                
+                if (isWrongKey) {
+                    // Wrong key - red highlight
+                    ctx.fillStyle = '#ff3333';
+                } else if (isBlack) {
+                    ctx.fillStyle = isPressed ? '#555' : '#333';
+                } else {
+                    ctx.fillStyle = isPressed ? '#ccc' : '#e8e8e8';
+                }
+                
+                const keyRect = getKeyRect(i);
+                const keyX = keyRect.x;
+                const keyWidth = keyRect.width;
+                
+                ctx.fillRect(keyX, BAR_Y, keyWidth, BAR_HEIGHT);
+                ctx.strokeStyle = isWrongKey ? '#ff6666' : '#000';
+                ctx.lineWidth = isWrongKey ? 3 : 1;
+                ctx.strokeRect(keyX, BAR_Y, keyWidth, BAR_HEIGHT);
+                
+                // Key label
+                const label = getColumnLabel(i);
+                ctx.fillStyle = (isBlack || isWrongKey) ? '#fff' : '#000';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(label, keyX + keyWidth/2, BAR_Y + BAR_HEIGHT/2 + 5);
+            }
+
+            // Draw key press particles in foreground (over the piano keys)
+            drawKeyParticles();
+            
+            // Update HUD
+            document.getElementById('scoreDisplay').textContent = `Score: ${gameState.score}`;
+            document.getElementById('comboDisplay').textContent = `Combo: ${gameState.combo}x`;
+            
+            // Update judgement display
+            if (gameState.judgementTimer > 0) {
+                gameState.judgementTimer--;
+                if (gameState.judgementTimer === 0) {
+                    document.getElementById('judgementDisplay').classList.remove('show');
+                    document.getElementById('comboMultiplier').classList.remove('show', 'rise', 'perfect-outline');
+                }
+            }
+        }
+        
+        // ============================================
+        // Game Loop
+        // ============================================
+        function gameLoop(loopToken = gameState.gameLoopToken) {
+            if (loopToken !== gameState.gameLoopToken) return;
+            if (gameState.state !== 'playing') return;
+            updateKeyParticles();
+            
+            // Handle short wrong-key flash on piano key
+            if (gameState.missPending) {
+                gameState.missTimer++;
+                if (gameState.missTimer >= WRONG_KEY_FLASH_FRAMES) {
+                    gameState.missPending = false;
+                    gameState.wrongKeyColumn = null;
+                }
+            }
+            
+            gameState.gameFrame++;
+            
+            // Spawn tiles
+            if (gameState.useMidiSchedule && gameState.levelNotes.length > 0) {
+                // MIDI/Level mode - spawn based on schedule
+                while (gameState.levelNoteIndex < gameState.levelNotes.length) {
+                    const note = gameState.levelNotes[gameState.levelNoteIndex];
+                    if (note.frame <= gameState.gameFrame) {
+                        // Gebruik lengthPixels van de MIDI note (berekend in parser)
+                        const holdLength = note.lengthPixels || TILE_SIZE;
+                        
+                        gameState.tiles.push(new Tile(note.column, holdLength, note.note));
+                        gameState.levelNoteIndex++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // Check for level completion
+                if (gameState.levelNoteIndex >= gameState.levelNotes.length && 
+                    gameState.tiles.every(t => t.hit || t.y > SCREEN_HEIGHT)) {
+                    levelComplete();
+                    return;
+                }
+            } else {
+                // Free play mode - random spawning
+                gameState.spawnCounter++;
+                if (gameState.spawnCounter >= gameState.spawnRate) {
+                    const randomCol = Math.floor(Math.random() * NUM_COLUMNS);
+                    // Occasionally spawn hold notes
+                    const isHold = Math.random() < 0.2;
+                    const height = isHold ? 60 + Math.random() * 80 : TILE_SIZE;
+                    gameState.tiles.push(new Tile(randomCol, height));
+                    gameState.spawnCounter = 0;
+                }
+            }
+            
+            // Update tiles
+            for (let i = gameState.tiles.length - 1; i >= 0; i--) {
+                const tile = gameState.tiles[i];
+                tile.update();
+                
+                // Cheats: auto-hit tiles before they would miss (like Python version)
+                // This must come BEFORE the miss check!
+                if (gameState.settings.cheatsEnabled && !tile.hit && !tile.missed && !tile.holding) {
+                    // Auto-hit when tile's bottom reaches the bar area
+                    if (tile.y + tile.height >= BAR_Y) {
+                        // Check if this is a hold note
+                        if (tile.holdFramesRequired > 10) {
+                            // Start holding - play sustain sound
+                            tile.holding = true;
+                            tile.latched = true;
+                            gameState.activeHolds[tile.column] = tile;
+                            const holdSeconds = Math.max(0.35, (tile.holdFramesRequired / FPS) + 0.35);
+                            startSustainSound(tile.column, tile.noteNum, holdSeconds, tile.sustainVoiceKey);
+                        } else {
+                            // Regular note - play sound for duration based on tile height
+                            tile.hit = true;
+                            const durationSeconds = Math.max(0.15, Math.min(tile.height / gameState.tileSpeed / FPS, 3.0));
+                            playNote(tile.column, durationSeconds, tile.noteNum);
+                            gameState.score += 1;
+                        }
+                    }
+                }
+                
+                // Check if tile was missed (bottom of tile reaches bottom of screen - like Python)
+                if (!tile.hit && !tile.missed && !tile.holding && (tile.y + tile.height) >= SCREEN_HEIGHT) {
+                    tile.missed = true;
+                    if (!gameState.settings.cheatsEnabled) {
+                        loseLife(tile.column);
+                    }
+                }
+                
+                // Auto-complete holds in easy mode
+                if (gameState.settings.easyHoldEnabled && tile.holding && tile.latched) {
+                    if (tile.holdFramesElapsed >= tile.holdFramesRequired * 0.9) {
+                        tile.hit = true;
+                        gameState.score += 3; // Perfect score
+                        stopSustainSound(tile.sustainVoiceKey || getSustainVoiceKey(tile.column, tile.noteNum), 20);
+                        delete gameState.activeHolds[tile.column];
+                    }
+                }
+                
+                // Cheats: auto-complete hold notes when they've passed completely
+                // Stop sustain sound and mark as hit when tile bottom passes the screen
+                if (gameState.settings.cheatsEnabled && tile.holding && tile.latched) {
+                    // Hold note is done when bottom of tile passes the bar + some margin
+                    if (tile.y >= BAR_Y + BAR_HEIGHT) {
+                        tile.hit = true;
+                        gameState.score += 1;
+                        stopSustainSound(tile.sustainVoiceKey || getSustainVoiceKey(tile.column, tile.noteNum), 20);
+                        delete gameState.activeHolds[tile.column];
+                    }
+                }
+                
+                // Remove off-screen tiles
+                if (tile.fadeTimer > tile.fadeDuration || (tile.missed && tile.y > SCREEN_HEIGHT + 100)) {
+                    if (tile.holding && !tile.hit) {
+                        stopSustainSound(tile.sustainVoiceKey || getSustainVoiceKey(tile.column, tile.noteNum), 20);
+                    }
+                    gameState.tiles.splice(i, 1);
+                }
+            }
+            
+            // Draw
+            drawGame();
+            
+            // Continue loop
+            setTimeout(() => gameLoop(loopToken), 1000 / FPS);
+        }
+        
+        // ============================================
+        // Event Listeners
+        // ============================================
+        
+        // Key code mappings (using e.code for modern browsers)
+        const KEY_CODES = {
+            'KeyA': 0, 'KeyW': 1, 'KeyS': 2, 'KeyE': 3, 'KeyD': 4, 'KeyC': 5,
+            'KeyU': 6, 'KeyJ': 7, 'KeyI': 8, 'KeyK': 9, 'KeyO': 10, 'KeyL': 11
+        };
+        const STRAIGHT_KEY_CODES = {
+            'Digit1': 0, 'Digit2': 1, 'Digit3': 2, 'Digit4': 3, 'Digit5': 4, 'Digit6': 5,
+            'Digit7': 6, 'Digit8': 7, 'Digit9': 8, 'Digit0': 9, 'Minus': 10, 'Equal': 11
+        };
+
+        function getColumnFromKeyboardEvent(e) {
+            let column = KEY_CODES[e.code];
+            if (column === undefined) column = STRAIGHT_KEY_CODES[e.code];
+            if (column === undefined) column = KEYS[e.keyCode];
+            if (column === undefined) column = STRAIGHT_KEYS[e.keyCode];
+            return column;
+        }
+
+        function releaseAllComputerKeys() {
+            const pressedColumns = Array.from(gameState.keysCurrentlyPressed);
+            for (const column of pressedColumns) {
+                handleKeyRelease(column);
+            }
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            // Slash key toggles cheats while playing
+            if (gameState.state === 'playing' && (e.code === 'Slash' || e.key === '/' || e.keyCode === 191)) {
+                e.preventDefault();
+                toggleCheats();
+                return;
+            }
+
+            // R for Play Again / Replay
+            if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R' || e.keyCode === 82) {
+                if (gameState.state === 'gameover' || gameState.state === 'levelcomplete' || (gameState.state === 'playing' && gameState.settings.cheatsEnabled)) {
+                    e.preventDefault();
+                    restartGame();
+                    return;
+                }
+            }
+
+            // Get column from key (try e.code first, then fallback to keyCode)
+            const column = getColumnFromKeyboardEvent(e);
+            
+            // Prevent default for game keys
+            if (column !== undefined) {
+                e.preventDefault();
+            }
+            
+            // Escape for back/pause
+            if (e.code === 'Escape' || e.keyCode === 27) {
+                e.preventDefault();
+                handleEscapeBackAction();
+                return;
+            }
+            
+            if (column !== undefined) {
+                handleKeyPress(column);
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            const column = getColumnFromKeyboardEvent(e);
+            
+            if (column !== undefined) {
+                handleKeyRelease(column);
+            }
+        });
+
+        window.addEventListener('blur', () => {
+            releaseAllComputerKeys();
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                releaseAllComputerKeys();
+            }
+        });
+        
+        document.getElementById('pauseBtn').addEventListener('click', pauseGame);
+        
+        // Mouse click support for piano keys
+        let mouseColumn = null;
+        
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (SCREEN_WIDTH / rect.width);
+            const y = (e.clientY - rect.top) * (SCREEN_HEIGHT / rect.height);
+            
+            // Check if click is in the piano bar area
+            if (y >= BAR_Y && y <= BAR_Y + BAR_HEIGHT) {
+                for (let i = 0; i < NUM_COLUMNS; i++) {
+                    if (x >= column_x[i] && x < column_x[i] + column_widths[i]) {
+                        mouseColumn = i;
+                        handleKeyPress(i);
+                        break;
+                    }
+                }
+            }
+        });
+        
+        canvas.addEventListener('mouseup', (e) => {
+            if (mouseColumn !== null) {
+                handleKeyRelease(mouseColumn);
+                mouseColumn = null;
+            }
+        });
+        
+        canvas.addEventListener('mouseleave', (e) => {
+            if (mouseColumn !== null) {
+                handleKeyRelease(mouseColumn);
+                mouseColumn = null;
+            }
+        });
+        
+        // Touch support for piano keys
+        const touchColumns = new Map();
+        
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            for (let touch of e.changedTouches) {
+                const x = (touch.clientX - rect.left) * (SCREEN_WIDTH / rect.width);
+                const y = (touch.clientY - rect.top) * (SCREEN_HEIGHT / rect.height);
+                
+                // Check if touch is in piano bar area
+                if (y >= BAR_Y && y <= BAR_Y + BAR_HEIGHT) {
+                    for (let i = 0; i < NUM_COLUMNS; i++) {
+                        if (x >= column_x[i] && x < column_x[i] + column_widths[i]) {
+                            touchColumns.set(touch.identifier, i);
+                            handleKeyPress(i);
+                            break;
+                        }
+                    }
+                }
+            }
+        }, { passive: false });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            for (let touch of e.changedTouches) {
+                const x = (touch.clientX - rect.left) * (SCREEN_WIDTH / rect.width);
+                const y = (touch.clientY - rect.top) * (SCREEN_HEIGHT / rect.height);
+                
+                const prevCol = touchColumns.get(touch.identifier);
+                
+                // Find new column
+                let newCol = null;
+                if (y >= BAR_Y && y <= BAR_Y + BAR_HEIGHT) {
+                    for (let i = 0; i < NUM_COLUMNS; i++) {
+                        if (x >= column_x[i] && x < column_x[i] + column_widths[i]) {
+                            newCol = i;
+                            break;
+                        }
+                    }
+                }
+                
+                // If column changed
+                if (prevCol !== newCol) {
+                    if (prevCol !== undefined && prevCol !== null) {
+                        handleKeyRelease(prevCol);
+                    }
+                    if (newCol !== null) {
+                        touchColumns.set(touch.identifier, newCol);
+                        handleKeyPress(newCol);
+                    } else {
+                        touchColumns.delete(touch.identifier);
+                    }
+                }
+            }
+        }, { passive: false });
+        
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                const col = touchColumns.get(touch.identifier);
+                if (col !== undefined) {
+                    handleKeyRelease(col);
+                    touchColumns.delete(touch.identifier);
+                }
+            }
+        }, { passive: false });
+        
+        canvas.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            for (let touch of e.changedTouches) {
+                const col = touchColumns.get(touch.identifier);
+                if (col !== undefined) {
+                    handleKeyRelease(col);
+                    touchColumns.delete(touch.identifier);
+                }
+            }
+        }, { passive: false });
+        
+        // Initialize
+        updateInfoText();
+        renderLives();
+        preloadLevelPreviewImages();
+        setupLevelHoverBackgrounds();
+        drawGame();
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
