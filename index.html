@@ -2382,7 +2382,7 @@
                     { name: 'Vulcano', icon: '🌋' },
                     { name: 'Electric', icon: '⚡' },
                     { name: 'Ice', icon: '❄️' },
-                    { name: 'Steam', icon: '♨️' }
+                    null
                 ],
                 background: [],
                 instruments: [
@@ -2407,6 +2407,12 @@
             items[tab].forEach((item, i) => {
                 const div = document.createElement('div');
                 div.className = 'shop-item';
+
+                if (item === null) {
+                    grid.appendChild(div);
+                    return;
+                }
+
                 if (!unlocked[tab][i]) div.classList.add('locked');
                 if (selected[tab] === i) div.classList.add('selected');
 
