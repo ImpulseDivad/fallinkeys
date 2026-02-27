@@ -40,7 +40,12 @@
             transition: opacity 0.3s;
             overflow-x: hidden;
         }
+        #menuOverlay { background: rgba(0, 0, 0, 0.8); }
         .overlay.hidden { display: none; }
+        #tutorialOverlay {
+            background: rgba(0, 0, 0, 0.58);
+            backdrop-filter: none;
+        }
         .overlay h1 { font-size: 36px; margin-bottom: 30px; color: #ffff00; text-shadow: 0 0 20px rgba(255,255,0,0.5); }
         .overlay h2 { font-size: 28px; margin-bottom: 20px; color: #ff4444; }
         .overlay h3 { font-size: 22px; margin-bottom: 15px; color: #00aaff; }
@@ -384,6 +389,14 @@
             gap: 10px;
             padding: 10px;
         }
+        #shopOverlay {
+            background-image:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.52) 0%, rgba(0, 0, 0, 0.74) 100%),
+                url('Images/marktachterg.png');
+            background-size: cover, cover;
+            background-position: center, center;
+            background-repeat: no-repeat, no-repeat;
+        }
         #shopOverlay .tabs {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -578,7 +591,7 @@
             <button class="button small" onclick="closeMidiAnalysis()">Terug</button>
         </div>
         
-        <div class="info-text" id="infoText">Keys: A W S E D C U J I K O L</div>
+        <div class="info-text" id="infoText" style="display: none;">Keys: A W S E D C U J I K O L</div>
     </div>
 
     <script>
@@ -616,6 +629,8 @@
         const KEY_PARTICLE_LIFETIME = 22;
         const KEY_PARTICLE_EMIT_INTERVAL = 1;
         const MAX_KEY_PARTICLES = 320;
+        const MENU_DEMO_MAX_TILES = 14;
+        const MENU_DEMO_UPDATE_EVERY_N_FRAMES = 2;
         const ICE_FLAKE_COUNT = 1;
         const ICE_DETAIL_PARTICLE_THRESHOLD = 120;
         const BLACK_INDEX_SET = new Set(BLACK_INDICES);
@@ -673,6 +688,11 @@
             keyParticles: [],
             keyParticleEmitTimers: Array(NUM_COLUMNS).fill(0),
             volcanoBigCooldowns: Array(NUM_COLUMNS).fill(0),
+            menuDemoLoopActive: false,
+            menuDemoSpawnCounter: 0,
+            menuDemoFrameCounter: 0,
+            menuDemoPressedUntil: Array(NUM_COLUMNS).fill(0),
+            menuDemoPressedKeys: new Set(),
             uiParticleLoopActive: false,
             gameLoopToken: 0,
             spawnCounter: 0,
@@ -718,6 +738,8 @@
             // Tutorial
             tutorialStep: 0,
             tutorialMode: false,
+            tutorialOverlayActive: false,
+            tutorialFallingPromptDone: false,
             
             // Hold notes
             activeHolds: {},
@@ -1643,6 +1665,27 @@
             
             draw() {
                 if (this.fadeTimer > this.fadeDuration) return;
+
+                if (this.menuDemoStyle) {
+                    ctx.globalAlpha = 1;
+                    ctx.fillStyle = this.menuDemoStyle.color || '#ffe84a';
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                    ctx.fillStyle = '#fffbd4';
+                    ctx.fillRect(this.x + 2, this.y + 2, Math.max(2, this.width - 4), Math.max(2, Math.floor(this.height * 0.28)));
+
+                    ctx.strokeStyle = this.menuDemoStyle.stroke || '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+                    const label = getColumnLabel(this.column);
+                    ctx.fillStyle = this.menuDemoStyle.label || '#000000';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(label, this.x + this.width/2, this.y + this.height - 8);
+                    ctx.globalAlpha = 1;
+                    return;
+                }
                 
                 let color = TILE_COLOR;
                 let alpha = 1;
@@ -1655,10 +1698,24 @@
                 } else if (this.holding) {
                     color = gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR;
                 }
+
+                if (gameState.tutorialMode && gameState.tutorialOverlayActive && !this.hit && !this.missed) {
+                    const flicker = 0.92 + (Math.sin(gameState.gameFrame * 0.06) * 0.45);
+                    alpha *= Math.max(0.4, flicker);
+                }
                 
                 ctx.globalAlpha = alpha;
                 ctx.fillStyle = color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                if (!this.hit && !this.missed && !this.holding && color === TILE_COLOR && !gameState.tutorialMode) {
+                    const glossHeight = Math.max(3, Math.floor(this.height * 0.3));
+                    ctx.fillStyle = 'rgba(255, 255, 210, 0.38)';
+                    ctx.fillRect(this.x + 1, this.y + 1, Math.max(2, this.width - 2), glossHeight);
+
+                    ctx.fillStyle = 'rgba(180, 140, 0, 0.16)';
+                    ctx.fillRect(this.x + 1, this.y + Math.max(0, this.height - 5), Math.max(2, this.width - 2), 4);
+                }
                 
                 ctx.strokeStyle = '#000';
                 ctx.lineWidth = 1;
@@ -2218,6 +2275,68 @@
             gameState.uiParticleLoopActive = true;
             runUiParticleLoop();
         }
+
+        function updateMenuDemoPressedKeys() {
+            gameState.menuDemoPressedKeys.clear();
+            for (let i = 0; i < NUM_COLUMNS; i++) {
+                if (gameState.menuDemoPressedUntil[i] > 0) {
+                    gameState.menuDemoPressedUntil[i]--;
+                    gameState.menuDemoPressedKeys.add(i);
+                }
+            }
+        }
+
+        function runMenuDemoLoop() {
+            const menuVisible = isElementVisible('menuOverlay');
+            if (gameState.state !== 'menu' || !menuVisible) {
+                gameState.menuDemoLoopActive = false;
+                gameState.menuDemoPressedKeys.clear();
+                gameState.menuDemoPressedUntil.fill(0);
+                return;
+            }
+
+            gameState.menuDemoFrameCounter++;
+            if ((gameState.menuDemoFrameCounter % MENU_DEMO_UPDATE_EVERY_N_FRAMES) === 0) {
+                gameState.menuDemoSpawnCounter++;
+                if (gameState.menuDemoSpawnCounter >= 26 && gameState.tiles.length < MENU_DEMO_MAX_TILES) {
+                    const randomCol = Math.floor(Math.random() * NUM_COLUMNS);
+                    const demoTile = new Tile(randomCol, TILE_SIZE, 48 + randomCol);
+                    demoTile.speed = Math.max(1.7, gameState.tileSpeed * 0.8);
+                    demoTile.menuDemoStyle = {
+                        color: '#fff100',
+                        stroke: '#fff8a8',
+                        label: '#000000'
+                    };
+                    gameState.tiles.push(demoTile);
+                    gameState.menuDemoSpawnCounter = 0;
+                }
+
+                for (let i = gameState.tiles.length - 1; i >= 0; i--) {
+                    const tile = gameState.tiles[i];
+                    tile.update();
+
+                    if (!tile.menuTriggered && !tile.hit && !tile.missed && (tile.y + tile.height) >= BAR_Y) {
+                        tile.menuTriggered = true;
+                        gameState.menuDemoPressedUntil[tile.column] = 7;
+                    }
+
+                    if (tile.y > SCREEN_HEIGHT + 60 || tile.fadeTimer > tile.fadeDuration) {
+                        gameState.tiles.splice(i, 1);
+                    }
+                }
+
+                updateMenuDemoPressedKeys();
+                drawGame();
+            }
+            requestAnimationFrame(runMenuDemoLoop);
+        }
+
+        function startMenuDemoLoop() {
+            if (gameState.menuDemoLoopActive) return;
+            gameState.menuDemoLoopActive = true;
+            gameState.menuDemoFrameCounter = 0;
+            runMenuDemoLoop();
+        }
         
         function showJudgement(type) {
             const el = document.getElementById('judgementDisplay');
@@ -2377,6 +2496,14 @@
         function showMenu() {
             gameState.state = 'menu';
             resetMenuInteractionState();
+            gameState.lastJudgement = '';
+            gameState.judgementTimer = 0;
+            const judgementEl = document.getElementById('judgementDisplay');
+            if (judgementEl) {
+                judgementEl.textContent = '';
+                judgementEl.classList.remove('show', 'perfect', 'great', 'allright');
+            }
+            resetComboDisplay();
             hideElement('playSelectOverlay');
             hideElement('levelsOverlay');
             hideElement('shopOverlay');
@@ -2389,7 +2516,8 @@
             showElement('menuOverlay');
             document.getElementById('hud').style.display = 'none';
             document.getElementById('pauseBtn').style.display = 'none';
-            document.getElementById('infoText').style.display = 'block';
+            document.getElementById('infoText').style.display = 'none';
+            startMenuDemoLoop();
         }
         
         function showPlaySelect() {
@@ -3266,19 +3394,27 @@
         
         function startTutorial() {
             hideElement('playSelectOverlay');
+            gameState.menuDemoLoopActive = false;
+            resetMenuInteractionState();
+            drawGame();
+            hideElement('tutorialOverlay');
             gameState.tutorialMode = true;
             gameState.tutorialStep = 0;
             gameState.currentLevel = null;
             gameState.useMidiSchedule = true;
+            gameState.tutorialOverlayActive = false;
+            gameState.tutorialFallingPromptDone = false;
+
+            const tutorialText = document.getElementById('tutorialText');
+            if (tutorialText) tutorialText.innerHTML = '';
+            const tutorialBtn = document.querySelector('#tutorialOverlay button');
+            if (tutorialBtn) tutorialBtn.textContent = 'Start Tutorial';
             
-            // Tutorial noten: C-E-G akkoord (kolommen 0, 4, 7) - zoals Python versie
+            // Tutorial: exact 3 noten (A, D, J), gelijke lengte en zonder gaten ertussen
             gameState.levelNotes = [
-                { column: 0, frame: 60, note: 48, lengthPixels: TILE_SIZE },  // C
-                { column: 4, frame: 90, note: 52, lengthPixels: TILE_SIZE },  // E  
-                { column: 7, frame: 120, note: 55, lengthPixels: TILE_SIZE }, // G
-                { column: 0, frame: 180, note: 48, lengthPixels: 80 },        // C (hold)
-                { column: 4, frame: 240, note: 52, lengthPixels: TILE_SIZE }, // E
-                { column: 7, frame: 270, note: 55, lengthPixels: TILE_SIZE }, // G
+                { column: 0, frame: 70,  note: 48, lengthPixels: 120 }, // A
+                { column: 4, frame: 110, note: 52, lengthPixels: 120 }, // D
+                { column: 7, frame: 150, note: 55, lengthPixels: 120 }  // J
             ];
             
             // Start welcome animatie
@@ -3296,6 +3432,12 @@
         }
         
         function continueTutorial() {
+            if (gameState.tutorialOverlayActive) {
+                gameState.tutorialOverlayActive = false;
+                hideElement('tutorialOverlay');
+                return;
+            }
+
             gameState.tutorialStep++;
             
             if (gameState.tutorialStep === 1) {
@@ -3449,6 +3591,8 @@
             gameState.activeHolds = {};
             gameState.lives = gameState.maxLives;
             gameState.cheatsUsedThisRun = !!gameState.settings.cheatsEnabled;
+            gameState.tutorialOverlayActive = false;
+            gameState.tutorialFallingPromptDone = false;
             
             // Reset miss state
             gameState.missPending = false;
@@ -3563,8 +3707,8 @@
             // In tutorial mode, show a friendly message instead of harsh "Game Over"
             if (gameState.tutorialMode) {
                 document.getElementById('tutorialText').innerHTML = `
-                    <h2 style="color: #ffaa00; margin-bottom: 15px;">Oops!</h2>
-                    <p style="margin-top: 10px;">Don't worry, practice makes perfect!</p>
+                    <h2 style="color: #ffaa00; margin-bottom: 10px; font-size: 44px; line-height: 1;">Noob</h2>
+                    <p style="margin-top: 2px; font-size: 22px; font-weight: 700;">jk ur the goat</p>
                     <p style="margin-top: 15px;">Try again or explore the menu.</p>
                 `;
                 document.querySelector('#tutorialOverlay button').textContent = 'Back to Menu';
@@ -3601,7 +3745,7 @@
                     <p>&bull; Build combos for higher scores!</p>
                 `;
                 document.querySelector('#tutorialOverlay button').textContent = 'Back to Menu';
-                gameState.tutorialStep = 99; // Mark as final step
+                gameState.tutorialStep = 99;
                 showElement('tutorialOverlay');
                 document.getElementById('hud').style.display = 'none';
                 document.getElementById('pauseBtn').style.display = 'none';
@@ -3902,7 +4046,7 @@
             // Draw piano keys
             for (let i = 0; i < NUM_COLUMNS; i++) {
                 const isBlack = BLACK_INDEX_SET.has(i);
-                const isPressed = gameState.pressedKeys.has(i);
+                const isPressed = gameState.pressedKeys.has(i) || gameState.menuDemoPressedKeys.has(i);
                 const isWrongKey = gameState.missPending && gameState.wrongKeyColumn === i;
                 
                 if (isWrongKey) {
@@ -3966,6 +4110,9 @@
             if (loopToken !== gameState.gameLoopToken) return;
             if (gameState.state !== 'playing') return;
             updateKeyParticles();
+
+            const tutorialFreezeNotes = gameState.tutorialMode && gameState.tutorialOverlayActive;
+            let showTutorialFallingOverlay = false;
 
             const isPracticeMode = gameState.settings.practiceModeEnabled && !gameState.settings.cheatsEnabled;
             let blockingTile = null;
@@ -4041,8 +4188,18 @@
                     if (tile === blockingTile) {
                         tile.y = BAR_Y - tile.height;
                     }
+                } else if (tutorialFreezeNotes && !tile.hit && !tile.missed && !tile.holding) {
+                    // Freeze tutorial notes while the instructional overlay is visible
                 } else {
                     tile.update();
+                }
+
+                if (gameState.tutorialMode && !gameState.tutorialOverlayActive && !gameState.tutorialFallingPromptDone && !tile.hit && !tile.missed) {
+                    const centerY = tile.y + (tile.height * 0.5);
+                    if (centerY >= SCREEN_HEIGHT * 0.5) {
+                        gameState.tutorialFallingPromptDone = true;
+                        showTutorialFallingOverlay = true;
+                    }
                 }
                 
                 // Cheats: auto-hit tiles before they would miss (like Python version)
@@ -4106,6 +4263,18 @@
                     gameState.tiles.splice(i, 1);
                 }
             }
+
+            if (showTutorialFallingOverlay) {
+                gameState.tutorialOverlayActive = true;
+                const tutorialText = document.getElementById('tutorialText');
+                tutorialText.innerHTML = `
+                    <h2 style="color: #7ed8ff; margin-bottom: 15px;">These are falling notes</h2>
+                    <p style="margin-top: 12px;">Press the matching key when they reach the white bar.</p>
+                    <p style="margin-top: 16px;"><b>Press space to continue</b></p>
+                `;
+                document.querySelector('#tutorialOverlay button').textContent = 'Continue';
+                showElement('tutorialOverlay');
+            }
             
             // Draw
             drawGame();
@@ -4148,6 +4317,12 @@
             if (gameState.state === 'playing' && (e.code === 'Slash' || e.key === '/' || e.keyCode === 191)) {
                 e.preventDefault();
                 toggleCheats();
+                return;
+            }
+
+            if (gameState.state === 'playing' && gameState.tutorialMode && gameState.tutorialOverlayActive && (e.code === 'Space' || e.keyCode === 32)) {
+                e.preventDefault();
+                continueTutorial();
                 return;
             }
 
@@ -4320,6 +4495,7 @@
         preloadLevelPreviewImages();
         setupLevelHoverBackgrounds();
         drawGame();
+        startMenuDemoLoop();
     </script>
 </body>
 </html>
