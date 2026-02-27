@@ -319,6 +319,14 @@
             background-position: center, center;
             background-repeat: no-repeat, no-repeat;
         }
+        #levelsOverlay.preview-hades {
+            background-image:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.7) 100%),
+                url('Images/hades%20desert.png');
+            background-size: cover, cover;
+            background-position: center, center;
+            background-repeat: no-repeat, no-repeat;
+        }
         
         /* Upload area */
         .upload-area {
@@ -602,11 +610,15 @@
         
         // Key Labels
         const KEY_LABELS = {0:'A', 1:'W', 2:'S', 3:'E', 4:'D', 5:'C', 6:'U', 7:'J', 8:'I', 9:'K', 10:'O', 11:'L'};
-        const NOTE_LABELS = {0:'C3', 1:'C#3', 2:'D3', 3:'D#3', 4:'E3', 5:'F3', 6:'F#3', 7:'G3', 8:'G#3', 9:'A3', 10:'A#3', 11:'B3'};
+        const NOTE_LABELS = {0:'C', 1:'C#', 2:'D', 3:'D#', 4:'E', 5:'F', 6:'F#', 7:'G', 8:'G#', 9:'A', 10:'A#', 11:'B'};
         const STRAIGHT_LABELS = {0:'1', 1:'2', 2:'3', 3:'4', 4:'5', 5:'6', 6:'7', 7:'8', 8:'9', 9:'0', 10:'-', 11:'='};
         const KEY_PARTICLE_COUNT = 5;
         const KEY_PARTICLE_LIFETIME = 22;
         const KEY_PARTICLE_EMIT_INTERVAL = 1;
+        const MAX_KEY_PARTICLES = 320;
+        const ICE_FLAKE_COUNT = 1;
+        const ICE_DETAIL_PARTICLE_THRESHOLD = 120;
+        const BLACK_INDEX_SET = new Set(BLACK_INDICES);
         
         // Column configuration
         const RAW_WIDTHS = Array(NUM_COLUMNS).fill(0).map((_, i) => BLACK_INDICES.includes(i) ? BLACK_FACTOR : 1.0);
@@ -616,6 +628,14 @@
         const column_x = [];
         let cx = 0;
         for (let w of column_widths) { column_x.push(cx); cx += w; }
+        const keyRects = Array(NUM_COLUMNS).fill(null).map((_, column) => {
+            const isBlack = BLACK_INDEX_SET.has(column);
+            const x = isBlack
+                ? column_x[column] + column_widths[column] - (column_widths[column] - 2)
+                : column_x[column] + 2;
+            const width = column_widths[column] - (isBlack ? 2 : 4);
+            return { x, width, isBlack };
+        });
         
         // Key mappings
         const KEYS = {65:0, 87:1, 83:2, 69:3, 68:4, 67:5, 85:6, 74:7, 73:8, 75:9, 79:10, 76:11};
@@ -665,6 +685,7 @@
             levelNotes: [],
             levelNoteIndex: 0,
             useMidiSchedule: false,
+            cheatsUsedThisRun: false,
             
             // Countdown
             countdownValue: 3,
@@ -731,6 +752,15 @@
             trumpetNoiseBuffer: null,
             saxNoiseBuffer: null
         };
+
+        const scoreDisplayEl = document.getElementById('scoreDisplay');
+        const comboDisplayEl = document.getElementById('comboDisplay');
+        const practiceModeIndicatorEl = document.getElementById('practiceModeIndicator');
+        let cachedLabelMode = null;
+        let cachedLabelMap = KEY_LABELS;
+        let lastHudScore = null;
+        let lastHudCombo = null;
+        let lastHudPracticeEnabled = null;
 
         // ============================================
         // ============================================
@@ -902,10 +932,23 @@
             return outMin + (outMax - outMin) * t;
         }
 
-        // Rough equal-loudness contour compensation for musical note frequencies.
-        // Boost lows, keep mids neutral, attenuate highs to reduce harshness.
-        function getEqualLoudnessGain(freq) {
+        // Instrument-aware equal-loudness compensation.
+        // Piano gets stronger low-end compensation to keep bass notes audible.
+        function getEqualLoudnessGain(freq, profile = 'general') {
             const safeFreq = Math.max(20, Math.min(freq || 440, 10000));
+
+            if (profile === 'piano') {
+                if (safeFreq <= 70) return 2.85;
+                if (safeFreq <= 110) return mapRange(safeFreq, 70, 110, 2.85, 2.35);
+                if (safeFreq <= 146.83) return mapRange(safeFreq, 110, 146.83, 2.35, 1.95);
+                if (safeFreq <= 220) return mapRange(safeFreq, 146.83, 220, 1.95, 1.55);
+                if (safeFreq <= 440) return mapRange(safeFreq, 220, 440, 1.55, 1.10);
+                if (safeFreq <= 1200) return mapRange(safeFreq, 440, 1200, 1.10, 0.95);
+                if (safeFreq <= 2400) return mapRange(safeFreq, 1200, 2400, 0.95, 0.86);
+                if (safeFreq <= 4000) return mapRange(safeFreq, 2400, 4000, 0.86, 0.76);
+                if (safeFreq <= 6000) return mapRange(safeFreq, 4000, 6000, 0.76, 0.69);
+                return 0.64;
+            }
 
             if (safeFreq <= 80) return 2.05;
             if (safeFreq <= 130) return mapRange(safeFreq, 80, 130, 2.05, 1.78);
@@ -932,7 +975,7 @@
         
         function playPianoNote(ctx, freq, duration, noteGain = 1) {
             const now = ctx.currentTime;
-            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.72 * noteGain;
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq, 'piano') * 0.72 * noteGain;
             const lowBoost = getPianoLowBoost(freq);
             const masterGain = ctx.createGain(); masterGain.connect(getAudioOutputNode(ctx));
             const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(getPianoFilterFreq(freq), now); filter.connect(masterGain);
@@ -1229,7 +1272,8 @@
             const instrument = gameState.shop.selectedInstrument;
             const now = ctx.currentTime;
             const rapidGain = getRapidNoteAttenuation(column, noteNum);
-            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.68 * rapidGain;
+            const eqProfile = instrument === 0 ? 'piano' : 'general';
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq, eqProfile) * 0.68 * rapidGain;
             const voiceKey = explicitVoiceKey || getSustainVoiceKey(column, noteNum);
             stopSustainSound(voiceKey);
 
@@ -1649,11 +1693,22 @@
         // Helper Functions
         // ============================================
         function getColumnLabel(column) {
-            switch(gameState.settings.labelMode) {
-                case 'notes': return NOTE_LABELS[column];
-                case 'straight': return STRAIGHT_LABELS[column];
-                default: return KEY_LABELS[column];
+            const mode = gameState.settings.labelMode;
+            if (mode !== cachedLabelMode) {
+                cachedLabelMode = mode;
+                switch(mode) {
+                    case 'notes':
+                        cachedLabelMap = NOTE_LABELS;
+                        break;
+                    case 'straight':
+                        cachedLabelMap = STRAIGHT_LABELS;
+                        break;
+                    default:
+                        cachedLabelMap = KEY_LABELS;
+                        break;
+                }
             }
+            return cachedLabelMap[column];
         }
 
         function getMidiNoteName(noteNum) {
@@ -1670,19 +1725,16 @@
         }
 
         function getKeyRect(column) {
-            const isBlack = BLACK_INDICES.includes(column);
-            const x = isBlack
-                ? column_x[column] + column_widths[column] - (column_widths[column] - 2)
-                : column_x[column] + 2;
-            const width = column_widths[column] - (isBlack ? 2 : 4);
-            return { x, width, isBlack };
+            return keyRects[column];
         }
 
         function spawnKeyParticles(column) {
+            if (gameState.keyParticles.length >= MAX_KEY_PARTICLES) return;
             const keyRect = getKeyRect(column);
             const isWaterfallTheme = gameState.shop.selectedTheme === 1;
             const isVolcanoTheme = gameState.shop.selectedTheme === 2;
             const isElectricTheme = gameState.shop.selectedTheme === 3;
+            const isIceTheme = gameState.shop.selectedTheme === 4;
 
             if (isWaterfallTheme) {
                 const dropletColors = ['#bfeaff', '#79c8ff', '#2f7fe3'];
@@ -1825,6 +1877,31 @@
                 return;
             }
 
+            if (isIceTheme) {
+                const startY = BAR_Y - (0.4 + Math.random() * 1.0);
+                const flakeCount = ICE_FLAKE_COUNT;
+                for (let i = 0; i < flakeCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    const flakeLife = KEY_PARTICLE_LIFETIME + 8 + Math.floor(Math.random() * 8);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY + (Math.random() * 1.5),
+                        vx: (Math.random() - 0.5) * 0.16,
+                        vy: -(0.34 + Math.random() * 0.38),
+                        size: 2.2 + Math.random() * 2.4,
+                        phase: Math.random() * Math.PI * 2,
+                        rotation: Math.random() * Math.PI * 2,
+                        spin: (Math.random() - 0.5) * 0.024,
+                        age: 0,
+                        life: flakeLife,
+                        maxLife: flakeLife,
+                        color: '#dff6ff',
+                        particleType: 'ice-flake'
+                    });
+                }
+                return;
+            }
+
             const color = keyRect.isBlack ? '#9fc5ff' : '#f7f7ff';
 
             for (let i = 0; i < KEY_PARTICLE_COUNT; i++) {
@@ -1894,7 +1971,8 @@
                     }
 
                     if (Math.random() < 0.55) {
-                        gameState.keyParticles.push({
+                        if (gameState.keyParticles.length < MAX_KEY_PARTICLES) {
+                            gameState.keyParticles.push({
                             x: particle.x + (Math.random() - 0.5) * (particle.size * 0.6),
                             y: particle.y + (particle.size * 0.25),
                             vx: (Math.random() - 0.5) * 0.22,
@@ -1905,7 +1983,8 @@
                             maxLife: 8 + Math.floor(Math.random() * 8),
                             color: 'rgba(255, 245, 230, 0.95)',
                             particleType: 'volcano-steam'
-                        });
+                            });
+                        }
                     }
 
                     if (!particle.trail) particle.trail = [];
@@ -1934,6 +2013,12 @@
                 } else if (particle.particleType === 'electric-spark') {
                     particle.vy += particle.gravity || 0.06;
                     particle.vx *= 0.965;
+                } else if (particle.particleType === 'ice-flake') {
+                    particle.age = (particle.age || 0) + 1;
+                    particle.vx += Math.sin((particle.age * 0.13) + (particle.phase || 0)) * 0.0022;
+                    particle.vx *= 0.986;
+                    particle.vy *= 0.997;
+                    particle.rotation = (particle.rotation || 0) + (particle.spin || 0);
                 } else {
                     particle.vy += 0.03;
                     particle.vx *= 0.992;
@@ -1947,6 +2032,7 @@
         }
 
         function drawKeyParticles() {
+            const highLoadEffects = gameState.keyParticles.length > 180;
             for (const particle of gameState.keyParticles) {
                 const alpha = Math.max(0, particle.life / particle.maxLife);
                 ctx.globalAlpha = alpha;
@@ -1961,7 +2047,8 @@
 
                 if (particle.particleType === 'volcano-big') {
                     const trail = particle.trail || [];
-                    for (let t = 1; t < trail.length; t++) {
+                    const trailStep = highLoadEffects ? 2 : 1;
+                    for (let t = 1; t < trail.length; t += trailStep) {
                         const start = trail[t - 1];
                         const end = trail[t];
                         const trailAlpha = alpha * (t / trail.length) * 0.75;
@@ -2034,15 +2121,65 @@
                 }
 
                 if (particle.particleType === 'electric-spark') {
-                    ctx.save();
-                    ctx.globalAlpha = alpha;
-                    ctx.fillStyle = particle.color || '#fff87a';
-                    ctx.shadowColor = '#ffe44d';
-                    ctx.shadowBlur = 10;
-                    ctx.beginPath();
-                    ctx.arc(particle.x, particle.y, particle.size || 1.1, 0, Math.PI * 2);
-                    ctx.fill();
-                    ctx.restore();
+                    if (highLoadEffects) {
+                        ctx.globalAlpha = alpha;
+                        ctx.fillStyle = particle.color || '#fff87a';
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, particle.size || 1.1, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        ctx.fillStyle = particle.color || '#fff87a';
+                        ctx.shadowColor = '#ffe44d';
+                        ctx.shadowBlur = 10;
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, particle.size || 1.1, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                    continue;
+                }
+
+                if (particle.particleType === 'ice-flake') {
+                    ctx.globalAlpha = Math.min(1, alpha * 0.92);
+                    const size = particle.size || 1.8;
+                    const iceHighLoad = highLoadEffects || gameState.keyParticles.length > ICE_DETAIL_PARTICLE_THRESHOLD;
+
+                    if (iceHighLoad) {
+                        ctx.fillStyle = particle.color || '#dff6ff';
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, Math.max(0.8, size * 0.45), 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        const armLength = size * 1.05;
+                        const rotation = particle.rotation || 0;
+
+                        ctx.save();
+                        ctx.translate(particle.x, particle.y);
+                        ctx.rotate(rotation);
+                        ctx.strokeStyle = particle.color || '#dff6ff';
+                        ctx.lineWidth = 1;
+                        ctx.beginPath();
+
+                        for (let arm = 0; arm < 6; arm++) {
+                            const a = (Math.PI / 3) * arm;
+                            const cosA = Math.cos(a);
+                            const sinA = Math.sin(a);
+                            const endX = cosA * armLength;
+                            const endY = sinA * armLength;
+
+                            ctx.moveTo(0, 0);
+                            ctx.lineTo(endX, endY);
+                        }
+
+                        ctx.stroke();
+                        ctx.fillStyle = '#f4fcff';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, Math.max(0.4, size * 0.16), 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
                     continue;
                 }
 
@@ -2072,7 +2209,8 @@
 
             updateKeyParticles();
             drawGame();
-            setTimeout(runUiParticleLoop, 1000 / FPS);
+
+            requestAnimationFrame(runUiParticleLoop);
         }
 
         function ensureUiParticleLoop() {
@@ -2112,9 +2250,21 @@
             gameState.lastShownMultiplier = 0;
         }
 
+        function livesEnabledForCurrentRun() {
+            return !!gameState.useMidiSchedule;
+        }
+
         function renderLives(breakingLifeNumber = null) {
             const el = document.getElementById('livesDisplay');
             if (!el) return;
+
+            if (!livesEnabledForCurrentRun()) {
+                el.style.display = 'none';
+                el.innerHTML = '';
+                return;
+            }
+
+            el.style.display = '';
 
             let html = '';
             for (let i = 1; i <= gameState.maxLives; i++) {
@@ -2130,7 +2280,7 @@
         }
 
         function loseLife(column = null, flashFrames = WRONG_KEY_FLASH_FRAMES) {
-            if (gameState.state !== 'playing' || gameState.settings.cheatsEnabled || gameState.settings.practiceModeEnabled || gameState.lives <= 0) return;
+            if (gameState.state !== 'playing' || !livesEnabledForCurrentRun() || gameState.settings.cheatsEnabled || gameState.settings.practiceModeEnabled || gameState.lives <= 0) return;
 
             const previousLives = gameState.lives;
             gameState.lives = Math.max(0, gameState.lives - 1);
@@ -2334,11 +2484,13 @@
             const overlay = document.getElementById('levelsOverlay');
             if (!overlay) return;
 
-            overlay.classList.remove('preview-sunrise', 'preview-greenhills');
+            overlay.classList.remove('preview-sunrise', 'preview-greenhills', 'preview-hades');
             if (previewName === 'sunrise') {
                 overlay.classList.add('preview-sunrise');
             } else if (previewName === 'greenhills') {
                 overlay.classList.add('preview-greenhills');
+            } else if (previewName === 'hades') {
+                overlay.classList.add('preview-hades');
             }
         }
 
@@ -2356,8 +2508,8 @@
             levelTwoButton.addEventListener('mouseenter', () => setLevelMenuPreview('greenhills'));
             levelTwoButton.addEventListener('focus', () => setLevelMenuPreview('greenhills'));
 
-            levelThreeButton.addEventListener('mouseenter', () => setLevelMenuPreview(null));
-            levelThreeButton.addEventListener('focus', () => setLevelMenuPreview(null));
+            levelThreeButton.addEventListener('mouseenter', () => setLevelMenuPreview('hades'));
+            levelThreeButton.addEventListener('focus', () => setLevelMenuPreview('hades'));
 
             levelOneButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
@@ -2374,7 +2526,9 @@
             const previewSources = [
                 'Images/sunrise.png',
                 'Images/green%20hills.png',
-                'Images/green hills.png'
+                'Images/green hills.png',
+                'Images/hades%20desert.png',
+                'Images/hades desert.png'
             ];
 
             for (const source of previewSources) {
@@ -2551,6 +2705,9 @@
         
         function toggleCheats() {
             gameState.settings.cheatsEnabled = !gameState.settings.cheatsEnabled;
+            if (gameState.settings.cheatsEnabled && (gameState.state === 'playing' || gameState.state === 'paused')) {
+                gameState.cheatsUsedThisRun = true;
+            }
             switchSettingsTab('gameplay');
         }
 
@@ -3291,6 +3448,7 @@
             gameState.gameFrame = 0;
             gameState.activeHolds = {};
             gameState.lives = gameState.maxLives;
+            gameState.cheatsUsedThisRun = !!gameState.settings.cheatsEnabled;
             
             // Reset miss state
             gameState.missPending = false;
@@ -3429,7 +3587,7 @@
             gameState.state = 'levelcomplete';
             stopAllSounds();
             resetComboDisplay();
-            const cheatsActive = !!gameState.settings.cheatsEnabled;
+            const cheatsActive = !!gameState.settings.cheatsEnabled || !!gameState.cheatsUsedThisRun;
             const noStarsMode = cheatsActive || !!gameState.settings.practiceModeEnabled;
             
             // Tutorial completion - show tutorial complete screen
@@ -3591,25 +3749,40 @@
         }
         
         function checkTileHit(column) {
-            // Find hittable tiles in this column
-            // With cheats: any tile can be hit (timing doesn't matter)
-            // Without cheats: only tiles in the hit zone
-            let hittableTiles;
-            if (gameState.settings.cheatsEnabled) {
-                hittableTiles = gameState.tiles.filter(t => 
-                    t.column === column && !t.hit && !t.missed && !t.holding
-                ).sort((a, b) => b.y - a.y);
-            } else {
-                hittableTiles = gameState.tiles.filter(t => 
-                    t.column === column && t.canBeHit() && !t.holding
-                ).sort((a, b) => b.y - a.y);
+            let tile = null;
+            let maxY = -Infinity;
+            const cheatsEnabled = gameState.settings.cheatsEnabled;
+            for (const candidate of gameState.tiles) {
+                if (candidate.column !== column || candidate.hit || candidate.missed || candidate.holding) continue;
+                if (!cheatsEnabled && !candidate.canBeHit()) continue;
+                if (candidate.y > maxY) {
+                    tile = candidate;
+                    maxY = candidate.y;
+                }
             }
-            
-            if (hittableTiles.length > 0) {
-                const tile = hittableTiles[0];
+
+            if (tile) {
+                if (cheatsEnabled) {
+                    stopSustainSound(column, 20);
+                    stopAllVoicesForColumn(column, 20);
+                }
                 
                 // Check if this is a hold note (long tile)
                 if (tile.holdFramesRequired > 10) {
+                    if (cheatsEnabled) {
+                        tile.hit = true;
+                        tile.holding = false;
+                        tile.latched = false;
+                        stopSustainSound(tile.sustainVoiceKey || getSustainVoiceKey(column, tile.noteNum), 20);
+                        gameState.score += 1;
+                        gameState.combo++;
+                        gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
+                        showJudgement('Perfect');
+                        playNote(column, 0.18, tile.noteNum);
+                        delete gameState.activeHolds[column];
+                        return;
+                    }
+
                     tile.holding = true;
                     tile.latched = true;
                     gameState.activeHolds[column] = tile;
@@ -3701,7 +3874,7 @@
             
             // Draw column backgrounds
             for (let i = 0; i < NUM_COLUMNS; i++) {
-                const isBlack = BLACK_INDICES.includes(i);
+                const isBlack = BLACK_INDEX_SET.has(i);
                 ctx.fillStyle = isBlack ? '#282828' : '#222222';
                 ctx.fillRect(column_x[i], 0, column_widths[i], SCREEN_HEIGHT);
                 
@@ -3728,7 +3901,7 @@
 
             // Draw piano keys
             for (let i = 0; i < NUM_COLUMNS; i++) {
-                const isBlack = BLACK_INDICES.includes(i);
+                const isBlack = BLACK_INDEX_SET.has(i);
                 const isPressed = gameState.pressedKeys.has(i);
                 const isWrongKey = gameState.missPending && gameState.wrongKeyColumn === i;
                 
@@ -3762,11 +3935,18 @@
             drawKeyParticles();
             
             // Update HUD
-            document.getElementById('scoreDisplay').textContent = `Score: ${gameState.score}`;
-            document.getElementById('comboDisplay').textContent = `Combo: ${gameState.combo}x`;
-            const practiceIndicator = document.getElementById('practiceModeIndicator');
-            if (practiceIndicator) {
-                practiceIndicator.style.display = gameState.settings.practiceModeEnabled ? 'inline' : 'none';
+            if (gameState.score !== lastHudScore) {
+                scoreDisplayEl.textContent = `Score: ${gameState.score}`;
+                lastHudScore = gameState.score;
+            }
+            if (gameState.combo !== lastHudCombo) {
+                comboDisplayEl.textContent = `Combo: ${gameState.combo}x`;
+                lastHudCombo = gameState.combo;
+            }
+            const practiceEnabled = gameState.settings.practiceModeEnabled;
+            if (practiceModeIndicatorEl && practiceEnabled !== lastHudPracticeEnabled) {
+                practiceModeIndicatorEl.style.display = practiceEnabled ? 'inline' : 'none';
+                lastHudPracticeEnabled = practiceEnabled;
             }
             
             // Update judgement display
@@ -3788,11 +3968,18 @@
             updateKeyParticles();
 
             const isPracticeMode = gameState.settings.practiceModeEnabled && !gameState.settings.cheatsEnabled;
-            const blockingTile = isPracticeMode
-                ? gameState.tiles
-                    .filter(t => !t.hit && !t.missed && !t.holding && (t.y + t.height) >= BAR_Y)
-                    .sort((a, b) => (b.y + b.height) - (a.y + a.height))[0]
-                : null;
+            let blockingTile = null;
+            if (isPracticeMode) {
+                let deepestBottom = -Infinity;
+                for (const tile of gameState.tiles) {
+                    if (tile.hit || tile.missed || tile.holding) continue;
+                    const bottom = tile.y + tile.height;
+                    if (bottom >= BAR_Y && bottom > deepestBottom) {
+                        deepestBottom = bottom;
+                        blockingTile = tile;
+                    }
+                }
+            }
 
             if (blockingTile) {
                 blockingTile.y = BAR_Y - blockingTile.height;
@@ -3924,7 +4111,7 @@
             drawGame();
             
             // Continue loop
-            setTimeout(() => gameLoop(loopToken), 1000 / FPS);
+            requestAnimationFrame(() => gameLoop(loopToken));
         }
         
         // ============================================
@@ -3966,7 +4153,7 @@
 
             // R for Play Again / Replay
             if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R' || e.keyCode === 82) {
-                if (gameState.state === 'gameover' || gameState.state === 'levelcomplete' || (gameState.state === 'playing' && gameState.settings.cheatsEnabled)) {
+                if (gameState.state === 'playing' || gameState.state === 'gameover' || gameState.state === 'levelcomplete') {
                     e.preventDefault();
                     restartGame();
                     return;
