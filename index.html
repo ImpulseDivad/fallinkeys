@@ -3816,20 +3816,27 @@
             
             // MIDI bestandsnamen voor elk level
             const levelFileNames = {
-                1: 'Sunrise.mid',
-                2: 'Green Hills.mid',
-                3: 'Hades Desert.mid'
+                1: ['Sunrise.mid', 'Sunrise (1).mid', 'Sunrise (2).mid'],
+                2: ['Green Hills.mid', 'Green Hills (1).mid', 'Green Hills (2).mid'],
+                3: ['Hades Desert.mid', 'Hades Desert (1).mid', 'Hades Desert (2).mid', 'Hades Desert (3).mid']
+            };
+
+            const levelDrumFileNames = {
+                1: ['sunrise drums.mid', 'sunrise drums (1).mid', 'sunrise drums (2).mid'],
+                2: ['green hills drums.mid', 'green hills drums (1).mid', 'green hills drums (2).mid'],
+                3: ['hades desert drums.mid', 'hades desert drums (1).mid', 'hades desert drums (2).mid', 'hades desert drums (3).mid']
             };
             
-            const levelFileName = levelFileNames[levelNum];
+            const levelFileNameCandidates = levelFileNames[levelNum] || [];
+            const levelDrumFileNameCandidates = levelDrumFileNames[levelNum] || [];
             
-            if (levelFileName) {
+            if (levelFileNameCandidates.length > 0) {
                 try {
-                    const baseCandidates = [
+                    const baseCandidates = levelFileNameCandidates.flatMap(levelFileName => ([
                         `Levels/${levelFileName}`,
                         `./Levels/${levelFileName}`,
                         `../Levels/${levelFileName}`
-                    ];
+                    ]));
                     const encodedCandidates = baseCandidates.map(path => encodeURI(path));
                     const allCandidates = [...new Set([...baseCandidates, ...encodedCandidates])];
                     const data = await loadMidiFromCandidates(allCandidates);
@@ -3839,13 +3846,13 @@
                         gameState.levelNotes = result.notes;
                         gameState.useMidiSchedule = true;
 
-                        if (levelNum === 1) {
+                        if (levelDrumFileNameCandidates.length > 0) {
                             try {
-                                const drumCandidates = [
-                                    'Levels/sunrise drums.mid',
-                                    './Levels/sunrise drums.mid',
-                                    '../Levels/sunrise drums.mid'
-                                ];
+                                const drumCandidates = levelDrumFileNameCandidates.flatMap(levelDrumFileName => ([
+                                    `Levels/${levelDrumFileName}`,
+                                    `./Levels/${levelDrumFileName}`,
+                                    `../Levels/${levelDrumFileName}`
+                                ]));
                                 const encodedDrumCandidates = drumCandidates.map(path => encodeURI(path));
                                 const allDrumCandidates = [...new Set([...drumCandidates, ...encodedDrumCandidates])];
                                 const drumData = await loadMidiFromCandidates(allDrumCandidates);
@@ -3853,18 +3860,29 @@
                                 const travelFrames = getSpawnToBarFrames();
                                 const drumDelayFrames = Math.round(0.1 * FPS);
                                 const drumPitchSet = new Set([35, 36, 38, 40, 41, 42, 44, 46, 49, 51]);
+                                const melodyBpm = result.analysis?.bpm || 0;
+                                const drumBpm = drumResult.analysis?.bpm || 0;
+                                const bpmSyncRatio = (melodyBpm > 0 && drumBpm > 0)
+                                    ? (drumBpm / melodyBpm)
+                                    : 1;
 
                                 gameState.backgroundDrumEvents = drumResult.notes
                                     .filter(n => drumPitchSet.has(n.note))
                                     .map(n => ({
-                                        frame: (n.frame || 0) + travelFrames + drumDelayFrames,
+                                        frame: Math.round((n.frame || 0) * bpmSyncRatio) + travelFrames + drumDelayFrames,
                                         note: n.note,
                                         velocity: n.velocity || 100
                                     }))
                                     .sort((a, b) => a.frame - b.frame);
                                 gameState.backgroundDrumIndex = 0;
+
+                                if (Math.abs(bpmSyncRatio - 1) > 0.01) {
+                                    console.info(
+                                        `BPM sync toegepast voor level ${levelNum} drums: melody=${melodyBpm}, drums=${drumBpm}, ratio=${bpmSyncRatio.toFixed(4)}`
+                                    );
+                                }
                             } catch (drumErr) {
-                                console.warn('Sunrise drum background kon niet geladen worden:', drumErr);
+                                console.warn(`Drum background kon niet geladen worden voor level ${levelNum}:`, drumErr);
                                 gameState.backgroundDrumEvents = [];
                                 gameState.backgroundDrumIndex = 0;
                             }
