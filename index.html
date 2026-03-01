@@ -255,6 +255,9 @@
             padding: 10px;
             word-break: break-word;
         }
+        #shopOverlay .settings-content {
+            overflow-y: hidden;
+        }
         .setting-row {
             display: flex;
             justify-content: space-between;
@@ -615,6 +618,7 @@
         const BLACK_FACTOR = 0.6;
         const WRONG_KEY_FLASH_FRAMES = Math.floor(FPS * 0.22);
         const MISSED_NOTE_FLASH_FRAMES = Math.floor(FPS * 2);
+        const CHEAT_AUTOPLAY_DELAY_SECONDS = 0.1;
         
         // Colors
         const TILE_COLOR = '#ffff00';
@@ -629,6 +633,8 @@
         const KEY_PARTICLE_LIFETIME = 22;
         const KEY_PARTICLE_EMIT_INTERVAL = 1;
         const MAX_KEY_PARTICLES = 320;
+        const GALACTIC_PARTICLE_SOFT_CAP = 150;
+        const ICE_PARTICLE_SOFT_CAP = 110;
         const MENU_DEMO_MAX_TILES = 14;
         const MENU_DEMO_UPDATE_EVERY_N_FRAMES = 2;
         const ICE_FLAKE_COUNT = 1;
@@ -729,7 +735,7 @@
                 selectedTheme: 0,
                 selectedBackground: 0,
                 selectedInstrument: 0,
-                unlockedThemes: [true, true, true, true, true, true],
+                unlockedThemes: [true, true, true, true, true, true, true],
                 unlockedBackgrounds: [true, true, true],
                 unlockedInstruments: [true, true, true]
             },
@@ -1797,6 +1803,15 @@
                 };
             }
 
+            if (themeIndex === 5) {
+                return {
+                    base: '#5c2aa8',
+                    active: '#9a68ff',
+                    stroke: '#2a124d',
+                    label: '#f4e7ff'
+                };
+            }
+
             return {
                 base: TILE_COLOR,
                 active: gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR,
@@ -1816,25 +1831,22 @@
             ctx.rect(x, y, w, h);
             ctx.clip();
             ctx.globalAlpha *= Math.max(0.2, Math.min(1, alpha));
-            ctx.strokeStyle = '#fff8be';
-            ctx.lineWidth = 1.4;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
 
-            const bolts = 3;
-            for (let i = 0; i < bolts; i++) {
-                const bx = x + (w * (0.2 + (i * 0.3)));
-                const top = y + 3;
-                const bottom = y + h - 4;
-                const mid1 = top + (h * 0.26);
-                const mid2 = top + (h * 0.56);
+            const bx = x + (w * 0.5);
+            const by = y + (h * 0.5);
+            const emojiSize = Math.max(9, Math.min(14, h * 0.26));
 
-                ctx.beginPath();
-                ctx.moveTo(bx - 2, top);
-                ctx.lineTo(bx + 3, mid1);
-                ctx.lineTo(bx - 1, mid1 + 6);
-                ctx.lineTo(bx + 4, mid2);
-                ctx.lineTo(bx + 1, bottom);
-                ctx.stroke();
-            }
+            ctx.save();
+            ctx.translate(bx, by);
+            ctx.rotate(-0.08);
+            ctx.font = `bold ${emojiSize}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+            ctx.shadowColor = 'rgba(190, 220, 255, 0.86)';
+            ctx.shadowBlur = 5;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('⚡', 0, 0);
+            ctx.restore();
 
             ctx.restore();
         }
@@ -1853,46 +1865,88 @@
             ctx.strokeStyle = '#f3fdff';
             ctx.fillStyle = '#f6feff';
 
-            const flakeCount = Math.max(2, Math.min(4, Math.round(w / 14)));
-            const centers = [];
-            for (let i = 0; i < flakeCount; i++) {
-                const cx = x + ((i + 1) * w / (flakeCount + 1));
-                const cy = y + h * (i % 2 === 0 ? 0.34 : 0.68);
-                centers.push({ x: cx, y: cy });
-            }
+            const center = {
+                x: x + (w * 0.5),
+                y: y + (h * 0.5)
+            };
+            const radius = Math.max(4.2, Math.min(7.2, (Math.min(w, h) * 0.18)));
+            ctx.lineWidth = Math.max(1.1, radius * 0.15);
 
-            for (const center of centers) {
-                const radius = Math.max(4.5, Math.min(8.8, (Math.min(w, h) * 0.22)));
-                ctx.lineWidth = Math.max(1.2, radius * 0.16);
-
-                for (let arm = 0; arm < 6; arm++) {
-                    const a = (Math.PI / 3) * arm;
-                    const cosA = Math.cos(a);
-                    const sinA = Math.sin(a);
-                    const ex = center.x + (cosA * radius);
-                    const ey = center.y + (sinA * radius);
-
-                    ctx.beginPath();
-                    ctx.moveTo(center.x, center.y);
-                    ctx.lineTo(ex, ey);
-                    ctx.stroke();
-
-                    const branchLen = radius * 0.38;
-                    const bx1 = center.x + (cosA * radius * 0.62);
-                    const by1 = center.y + (sinA * radius * 0.62);
-                    const sideA = a + (Math.PI / 6);
-                    const sideB = a - (Math.PI / 6);
-
-                    ctx.beginPath();
-                    ctx.moveTo(bx1, by1);
-                    ctx.lineTo(bx1 + Math.cos(sideA) * branchLen, by1 + Math.sin(sideA) * branchLen);
-                    ctx.moveTo(bx1, by1);
-                    ctx.lineTo(bx1 + Math.cos(sideB) * branchLen, by1 + Math.sin(sideB) * branchLen);
-                    ctx.stroke();
-                }
+            for (let arm = 0; arm < 6; arm++) {
+                const a = (Math.PI / 3) * arm;
+                const cosA = Math.cos(a);
+                const sinA = Math.sin(a);
+                const ex = center.x + (cosA * radius);
+                const ey = center.y + (sinA * radius);
 
                 ctx.beginPath();
-                ctx.arc(center.x, center.y, Math.max(1.1, radius * 0.14), 0, Math.PI * 2);
+                ctx.moveTo(center.x, center.y);
+                ctx.lineTo(ex, ey);
+                ctx.stroke();
+
+                const branchLen = radius * 0.34;
+                const bx1 = center.x + (cosA * radius * 0.62);
+                const by1 = center.y + (sinA * radius * 0.62);
+                const sideA = a + (Math.PI / 6);
+                const sideB = a - (Math.PI / 6);
+
+                ctx.beginPath();
+                ctx.moveTo(bx1, by1);
+                ctx.lineTo(bx1 + Math.cos(sideA) * branchLen, by1 + Math.sin(sideA) * branchLen);
+                ctx.moveTo(bx1, by1);
+                ctx.lineTo(bx1 + Math.cos(sideB) * branchLen, by1 + Math.sin(sideB) * branchLen);
+                ctx.stroke();
+            }
+
+            ctx.beginPath();
+            ctx.arc(center.x, center.y, Math.max(0.9, radius * 0.14), 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawGalacticPatternOnTile(tile, alpha = 1) {
+            const x = tile.x;
+            const y = tile.y;
+            const w = tile.width;
+            const h = tile.height;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            ctx.globalAlpha *= Math.max(0.25, Math.min(1, alpha));
+
+            const nebula = ctx.createRadialGradient(
+                x + (w * 0.3), y + (h * 0.35), Math.max(2, w * 0.05),
+                x + (w * 0.45), y + (h * 0.45), Math.max(w, h) * 0.9
+            );
+            nebula.addColorStop(0, 'rgba(206, 157, 255, 0.55)');
+            nebula.addColorStop(0.58, 'rgba(131, 77, 232, 0.30)');
+            nebula.addColorStop(1, 'rgba(66, 28, 128, 0.05)');
+            ctx.fillStyle = nebula;
+            ctx.fillRect(x, y, w, h);
+
+            ctx.strokeStyle = 'rgba(225, 205, 255, 0.48)';
+            ctx.lineWidth = 1;
+            const swirlCx = x + (w * 0.52);
+            const swirlCy = y + (h * 0.55);
+            const baseR = Math.max(4, Math.min(w, h) * 0.18);
+            const phase = (gameState.gameFrame * 0.018) % (Math.PI * 2);
+            ctx.beginPath();
+            ctx.arc(swirlCx, swirlCy, baseR, phase, phase + Math.PI * 1.5);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(swirlCx, swirlCy, baseR * 1.55, phase + 0.7, phase + 0.7 + Math.PI * 1.35);
+            ctx.stroke();
+
+            ctx.fillStyle = '#f7f0ff';
+            const starCount = Math.max(2, Math.min(4, Math.round(w / 16)));
+            for (let i = 0; i < starCount; i++) {
+                const sx = x + ((i + 1) * w / (starCount + 1));
+                const sy = y + (h * (0.22 + ((i % 2) * 0.38)));
+                ctx.beginPath();
+                ctx.arc(sx, sy, 0.9 + ((i % 2) * 0.35), 0, Math.PI * 2);
                 ctx.fill();
             }
 
@@ -1994,7 +2048,39 @@
                 }
                 
                 ctx.globalAlpha = alpha;
-                ctx.fillStyle = color;
+                if (themeIndex === 3 && !this.missed) {
+                    const lightningGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    if (this.hit || this.holding) {
+                        lightningGradient.addColorStop(0, '#1a1a1a');
+                        lightningGradient.addColorStop(1, '#fff27a');
+                    } else {
+                        lightningGradient.addColorStop(0, '#000000');
+                        lightningGradient.addColorStop(1, '#ffd400');
+                    }
+                    ctx.fillStyle = lightningGradient;
+                } else if (themeIndex === 4 && !this.missed) {
+                    const frostGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    if (this.hit || this.holding) {
+                        frostGradient.addColorStop(0, '#d9f3ff');
+                        frostGradient.addColorStop(1, '#ffffff');
+                    } else {
+                        frostGradient.addColorStop(0, '#9cdcff');
+                        frostGradient.addColorStop(1, '#ffffff');
+                    }
+                    ctx.fillStyle = frostGradient;
+                } else if (themeIndex === 5 && !this.missed) {
+                    const galacticGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    if (this.hit || this.holding) {
+                        galacticGradient.addColorStop(0, '#4a1f88');
+                        galacticGradient.addColorStop(1, '#ff78d1');
+                    } else {
+                        galacticGradient.addColorStop(0, '#251042');
+                        galacticGradient.addColorStop(1, '#d954c0');
+                    }
+                    ctx.fillStyle = galacticGradient;
+                } else {
+                    ctx.fillStyle = color;
+                }
                 ctx.fillRect(this.x, this.y, this.width, this.height);
 
                 if (!this.missed && themeIndex === 3) {
@@ -2003,6 +2089,10 @@
 
                 if (!this.missed && themeIndex === 4) {
                     drawIcePatternOnTile(this, this.hit || this.holding ? 0.9 : 0.76);
+                }
+
+                if (!this.missed && themeIndex === 5) {
+                    drawGalacticPatternOnTile(this, this.hit || this.holding ? 0.92 : 0.8);
                 }
 
                 if (!this.hit && !this.missed && !this.holding && themeIndex === 0 && !gameState.tutorialMode) {
@@ -2089,6 +2179,7 @@
             const isVolcanoTheme = gameState.shop.selectedTheme === 2;
             const isElectricTheme = gameState.shop.selectedTheme === 3;
             const isIceTheme = gameState.shop.selectedTheme === 4;
+            const isGalacticTheme = gameState.shop.selectedTheme === 5;
 
             if (isWaterfallTheme) {
                 const dropletColors = ['#bfeaff', '#79c8ff', '#2f7fe3'];
@@ -2205,9 +2296,12 @@
                         phase: Math.random() * Math.PI * 2,
                         boltLength: 8 + Math.random() * 5,
                         boltJitter: 1.4 + Math.random() * 1.7,
+                        boltSegments: 4 + Math.floor(Math.random() * 3),
+                        branchAngle: (Math.random() < 0.5 ? -1 : 1) * (0.28 + Math.random() * 0.3),
                         life: lifetime,
                         maxLife: lifetime,
-                        color: '#ffe000',
+                        color: '#ffffff',
+                        glowColor: '#bcd9ff',
                         particleType: 'electric-bolt'
                     });
                 }
@@ -2224,7 +2318,7 @@
                         size: 0.8 + Math.random() * 1.5,
                         life: 10 + Math.floor(Math.random() * 7),
                         maxLife: 10 + Math.floor(Math.random() * 7),
-                        color: '#fff87a',
+                        color: '#f5fbff',
                         particleType: 'electric-spark'
                     });
                 }
@@ -2232,25 +2326,94 @@
             }
 
             if (isIceTheme) {
+                const existingIceFlakeCount = gameState.keyParticles.filter(particle => (
+                    particle.particleType === 'ice-flake'
+                )).length;
+
                 const startY = BAR_Y - (0.4 + Math.random() * 1.0);
-                const flakeCount = ICE_FLAKE_COUNT;
+                const flakeCount = existingIceFlakeCount > ICE_PARTICLE_SOFT_CAP
+                    ? 1
+                    : Math.max(2, ICE_FLAKE_COUNT + 2);
                 for (let i = 0; i < flakeCount; i++) {
                     const spawnX = keyRect.x + (Math.random() * keyRect.width);
-                    const flakeLife = KEY_PARTICLE_LIFETIME + 8 + Math.floor(Math.random() * 8);
+                    const flakeLife = KEY_PARTICLE_LIFETIME + 10 + Math.floor(Math.random() * 10);
                     gameState.keyParticles.push({
                         x: spawnX,
                         y: startY + (Math.random() * 1.5),
-                        vx: (Math.random() - 0.5) * 0.16,
-                        vy: -(0.34 + Math.random() * 0.38),
+                        vx: (Math.random() - 0.5) * 0.28,
+                        vy: -(0.52 + Math.random() * 0.44),
                         size: 2.2 + Math.random() * 2.4,
                         phase: Math.random() * Math.PI * 2,
                         rotation: Math.random() * Math.PI * 2,
-                        spin: (Math.random() - 0.5) * 0.024,
+                        spin: (Math.random() - 0.5) * 0.03,
                         age: 0,
                         life: flakeLife,
                         maxLife: flakeLife,
                         color: '#dff6ff',
+                        column,
                         particleType: 'ice-flake'
+                    });
+                }
+                return;
+            }
+
+            if (isGalacticTheme) {
+                const existingGalacticCount = gameState.keyParticles.filter(p => (
+                    p.particleType === 'galactic-star' || p.particleType === 'galactic-galaxy'
+                )).length;
+
+                const starCount = existingGalacticCount > GALACTIC_PARTICLE_SOFT_CAP ? 1 : 2;
+                const startY = BAR_Y - (0.45 + Math.random() * 1.0);
+
+                for (let i = 0; i < starCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    const life = 14 + Math.floor(Math.random() * 8);
+                    const starColors = [
+                        { color: '#7dc8ff', glowColor: '#b9e4ff' },
+                        { color: '#ff8fd8', glowColor: '#ffd0f0' }
+                    ];
+                    const chosen = starColors[Math.floor(Math.random() * starColors.length)];
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY + (Math.random() * 1.2),
+                        vx: (Math.random() - 0.5) * 0.22,
+                        vy: -(0.62 + Math.random() * 0.48),
+                        gravity: 0.004,
+                        size: 1.2 + Math.random() * 1.4,
+                        phase: Math.random() * Math.PI * 2,
+                        life,
+                        maxLife: life,
+                        color: chosen.color,
+                        glowColor: chosen.glowColor,
+                        particleType: 'galactic-star'
+                    });
+                }
+
+                const hasGalaxyInColumn = gameState.keyParticles.some(particle => (
+                    particle.particleType === 'galactic-galaxy' &&
+                    particle.column === column &&
+                    particle.life > 0
+                ));
+
+                if (!hasGalaxyInColumn && existingGalacticCount < (GALACTIC_PARTICLE_SOFT_CAP + 30) && Math.random() < 0.42) {
+                    const spawnX = keyRect.x + (keyRect.width * (0.25 + Math.random() * 0.5));
+                    const life = 18 + Math.floor(Math.random() * 10);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY + (Math.random() * 1.1),
+                        vx: (Math.random() - 0.5) * 0.09,
+                        vy: -(0.35 + Math.random() * 0.22),
+                        gravity: 0.008,
+                        size: 2.8 + Math.random() * 1.6,
+                        spin: (Math.random() - 0.5) * 0.045,
+                        rotation: Math.random() * Math.PI * 2,
+                        phase: Math.random() * Math.PI * 2,
+                        life,
+                        maxLife: life,
+                        color: '#b38dff',
+                        glowColor: '#e8d7ff',
+                        column,
+                        particleType: 'galactic-galaxy'
                     });
                 }
                 return;
@@ -2369,9 +2532,20 @@
                     particle.vx *= 0.965;
                 } else if (particle.particleType === 'ice-flake') {
                     particle.age = (particle.age || 0) + 1;
-                    particle.vx += Math.sin((particle.age * 0.13) + (particle.phase || 0)) * 0.0022;
-                    particle.vx *= 0.986;
-                    particle.vy *= 0.997;
+                    particle.vx += Math.sin((particle.age * 0.16) + (particle.phase || 0)) * 0.008;
+                    particle.vx *= 0.992;
+                    particle.vy += 0.004;
+                    particle.vy *= 0.996;
+                    particle.rotation = (particle.rotation || 0) + (particle.spin || 0);
+                } else if (particle.particleType === 'galactic-star') {
+                    particle.age = (particle.age || 0) + 1;
+                    particle.vx += Math.sin((particle.age * 0.2) + (particle.phase || 0)) * 0.0024;
+                    particle.vx *= 0.988;
+                    particle.vy += particle.gravity || 0.018;
+                } else if (particle.particleType === 'galactic-galaxy') {
+                    particle.age = (particle.age || 0) + 1;
+                    particle.vx *= 0.989;
+                    particle.vy += particle.gravity || 0.008;
                     particle.rotation = (particle.rotation || 0) + (particle.spin || 0);
                 } else {
                     particle.vy += 0.03;
@@ -2458,19 +2632,31 @@
                 if (particle.particleType === 'electric-bolt') {
                     const flash = 0.68 + (Math.sin((gameState.gameFrame * 0.6) + (particle.phase || 0)) * 0.32);
                     const boltLength = particle.boltLength || 10;
-                    const boltJitter = particle.boltJitter || 1.8;
                     const x = particle.x;
                     const y = particle.y;
 
-                    ctx.strokeStyle = '#ffd84a';
-                    ctx.lineWidth = 1.4;
-                    ctx.globalAlpha = Math.min(1, alpha * (0.7 + flash * 0.4));
-                    ctx.beginPath();
-                    ctx.moveTo(x - (boltJitter * 0.6), y - (boltLength * 0.55));
-                    ctx.lineTo(x + boltJitter, y - (boltLength * 0.05));
-                    ctx.lineTo(x - (boltJitter * 0.9), y + (boltLength * 0.2));
-                    ctx.lineTo(x + (boltJitter * 0.5), y + (boltLength * 0.55));
-                    ctx.stroke();
+                    const fontSize = Math.max(13, Math.min(25, boltLength * (highLoadEffects ? 1.25 : 1.65)));
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate((particle.branchAngle || 0.2) * 0.5);
+                    ctx.globalAlpha = Math.min(1, alpha * (0.78 + flash * 0.35));
+                    ctx.font = `bold ${fontSize}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor = particle.glowColor || '#bcd9ff';
+                    ctx.shadowBlur = highLoadEffects ? 6 : 12;
+                    ctx.fillStyle = particle.color || '#ffffff';
+                    ctx.fillText('⚡', 0, 0);
+
+                    if (!highLoadEffects && flash > 0.82) {
+                        ctx.globalAlpha = Math.min(1, alpha * 0.62);
+                        ctx.shadowBlur = 0;
+                        ctx.font = `bold ${Math.max(10, Math.floor(fontSize * 0.72))}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+                        ctx.fillStyle = '#f6fbff';
+                        ctx.fillText('⚡', (particle.boltJitter || 1.6) * 1.1, fontSize * 0.22);
+                    }
+
+                    ctx.restore();
                     continue;
                 }
 
@@ -2534,6 +2720,73 @@
                         ctx.fill();
                         ctx.restore();
                     }
+                    continue;
+                }
+
+                if (particle.particleType === 'galactic-star') {
+                    const size = particle.size || 1.6;
+                    const twinkle = 0.62 + (Math.sin((gameState.gameFrame * 0.5) + (particle.phase || 0)) * 0.38);
+                    const starColor = particle.color || '#ead6ff';
+                    const starGlowColor = particle.glowColor || '#c39cff';
+
+                    if (highLoadEffects) {
+                        ctx.globalAlpha = Math.min(1, alpha * (0.7 + (twinkle * 0.3)));
+                        ctx.fillStyle = starColor;
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, Math.max(0.8, size * 0.45), 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        ctx.save();
+                        ctx.translate(particle.x, particle.y);
+                        ctx.globalAlpha = Math.min(1, alpha * (0.75 + (twinkle * 0.35)));
+                        ctx.strokeStyle = starColor;
+                        ctx.lineWidth = 1;
+                        ctx.shadowColor = starGlowColor;
+                        ctx.shadowBlur = 9;
+                        const arm = Math.max(1.2, size * 0.9);
+                        ctx.beginPath();
+                        ctx.moveTo(-arm, 0); ctx.lineTo(arm, 0);
+                        ctx.moveTo(0, -arm); ctx.lineTo(0, arm);
+                        ctx.moveTo(-arm * 0.68, -arm * 0.68); ctx.lineTo(arm * 0.68, arm * 0.68);
+                        ctx.moveTo(arm * 0.68, -arm * 0.68); ctx.lineTo(-arm * 0.68, arm * 0.68);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                    continue;
+                }
+
+                if (particle.particleType === 'galactic-galaxy') {
+                    const size = particle.size || 3.2;
+                    const pulse = 0.88 + (Math.sin((gameState.gameFrame * 0.22) + (particle.phase || 0)) * 0.12);
+
+                    ctx.save();
+                    ctx.translate(particle.x, particle.y);
+                    ctx.rotate(particle.rotation || 0);
+
+                    if (highLoadEffects) {
+                        ctx.globalAlpha = Math.min(1, alpha * 0.85);
+                        ctx.fillStyle = particle.color || '#b38dff';
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, size * 0.65, size * 0.45, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        ctx.globalAlpha = Math.min(1, alpha * 0.72);
+                        ctx.strokeStyle = particle.color || '#b38dff';
+                        ctx.lineWidth = 1.1;
+                        ctx.shadowColor = particle.glowColor || '#e8d7ff';
+                        ctx.shadowBlur = 10;
+                        ctx.beginPath();
+                        ctx.ellipse(0, 0, size * 1.08, size * 0.52, 0, 0, Math.PI * 2);
+                        ctx.stroke();
+
+                        ctx.globalAlpha = Math.min(1, alpha * 0.9);
+                        ctx.fillStyle = particle.glowColor || '#e8d7ff';
+                        ctx.beginPath();
+                        ctx.arc(0, 0, Math.max(0.8, size * 0.28 * pulse), 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    ctx.restore();
                     continue;
                 }
 
@@ -2985,6 +3238,9 @@
                     { name: 'Vulcano', icon: '🌋' },
                     { name: 'Electric', icon: '⚡' },
                     { name: 'Ice', icon: '❄️' },
+                    { name: 'Galactic', icon: '🌌' },
+                    null,
+                    null,
                     null
                 ],
                 background: [],
@@ -3807,6 +4063,34 @@
             throw lastError || new Error('Unknown MIDI loading error');
         }
 
+        function applyTempoScaleToNotes(notes, tempoScale = 1) {
+            if (!Array.isArray(notes) || !Number.isFinite(tempoScale) || tempoScale <= 0 || Math.abs(tempoScale - 1) < 0.0001) {
+                return notes || [];
+            }
+
+            return notes.map(note => ({
+                ...note,
+                frame: Math.max(0, Math.round((note.frame || 0) * tempoScale)),
+                durationMs: note.durationMs ? Math.max(1, note.durationMs * tempoScale) : note.durationMs,
+                lengthPixels: note.lengthPixels ? Math.max(TILE_SIZE, note.lengthPixels * tempoScale) : note.lengthPixels
+            }));
+        }
+
+        function buildNumberedMidiCandidates(baseFileName, maxSuffix = 12) {
+            if (!baseFileName || typeof baseFileName !== 'string') return [];
+
+            const extIndex = baseFileName.toLowerCase().lastIndexOf('.mid');
+            const base = extIndex >= 0 ? baseFileName.slice(0, extIndex) : baseFileName;
+            const ext = extIndex >= 0 ? baseFileName.slice(extIndex) : '.mid';
+            const candidates = [baseFileName];
+
+            for (let i = 1; i <= maxSuffix; i++) {
+                candidates.push(`${base} (${i})${ext}`);
+            }
+
+            return [...new Set(candidates)];
+        }
+
         async function startLevel(levelNum) {
             hideElement('levelsOverlay');
             gameState.currentLevel = levelNum;
@@ -3815,20 +4099,22 @@
             gameState.backgroundDrumIndex = 0;
             
             // MIDI bestandsnamen voor elk level
-            const levelFileNames = {
-                1: ['Sunrise.mid', 'Sunrise (1).mid', 'Sunrise (2).mid'],
-                2: ['Green Hills.mid', 'Green Hills (1).mid', 'Green Hills (2).mid'],
-                3: ['Hades Desert.mid', 'Hades Desert (1).mid', 'Hades Desert (2).mid', 'Hades Desert (3).mid']
+            const levelBaseFileNames = {
+                1: 'Sunrise.mid',
+                2: 'Green Hills.mid',
+                3: 'Hades Desert.mid'
             };
 
-            const levelDrumFileNames = {
-                1: ['sunrise drums.mid', 'sunrise drums (1).mid', 'sunrise drums (2).mid'],
-                2: ['green hills drums.mid', 'green hills drums (1).mid', 'green hills drums (2).mid'],
-                3: ['hades desert drums.mid', 'hades desert drums (1).mid', 'hades desert drums (2).mid', 'hades desert drums (3).mid']
+            const levelDrumBaseFileNames = {
+                1: 'sunrise drums.mid',
+                2: 'green hills drums.mid',
+                3: 'hades desert drums.mid'
             };
             
-            const levelFileNameCandidates = levelFileNames[levelNum] || [];
-            const levelDrumFileNameCandidates = levelDrumFileNames[levelNum] || [];
+            const levelFileNameCandidates = buildNumberedMidiCandidates(levelBaseFileNames[levelNum], 12);
+            const levelDrumFileNameCandidates = buildNumberedMidiCandidates(levelDrumBaseFileNames[levelNum], 12);
+            const levelTargetBpms = { 3: 60 };
+            const targetLevelBpm = levelTargetBpms[levelNum] || null;
             
             if (levelFileNameCandidates.length > 0) {
                 try {
@@ -3841,10 +4127,20 @@
                     const allCandidates = [...new Set([...baseCandidates, ...encodedCandidates])];
                     const data = await loadMidiFromCandidates(allCandidates);
                     const result = parseMidiFile(data);
+                    const melodySourceBpm = result.analysis?.bpm || 0;
+                    const levelTempoScale = (targetLevelBpm && melodySourceBpm > 0)
+                        ? (melodySourceBpm / targetLevelBpm)
+                        : 1;
                     
                     if (result.notes.length > 0) {
-                        gameState.levelNotes = result.notes;
+                        gameState.levelNotes = applyTempoScaleToNotes(result.notes, levelTempoScale);
                         gameState.useMidiSchedule = true;
+
+                        if (targetLevelBpm && melodySourceBpm > 0 && Math.abs(levelTempoScale - 1) > 0.01) {
+                            console.info(
+                                `Level ${levelNum} tempo aangepast: bron=${melodySourceBpm} BPM, doel=${targetLevelBpm} BPM, schaal=${levelTempoScale.toFixed(4)}`
+                            );
+                        }
 
                         if (levelDrumFileNameCandidates.length > 0) {
                             try {
@@ -3869,16 +4165,16 @@
                                 gameState.backgroundDrumEvents = drumResult.notes
                                     .filter(n => drumPitchSet.has(n.note))
                                     .map(n => ({
-                                        frame: Math.round((n.frame || 0) * bpmSyncRatio) + travelFrames + drumDelayFrames,
+                                        frame: Math.round((n.frame || 0) * bpmSyncRatio * levelTempoScale) + travelFrames + drumDelayFrames,
                                         note: n.note,
                                         velocity: n.velocity || 100
                                     }))
                                     .sort((a, b) => a.frame - b.frame);
                                 gameState.backgroundDrumIndex = 0;
 
-                                if (Math.abs(bpmSyncRatio - 1) > 0.01) {
+                                if (Math.abs(bpmSyncRatio - 1) > 0.01 || Math.abs(levelTempoScale - 1) > 0.01) {
                                     console.info(
-                                        `BPM sync toegepast voor level ${levelNum} drums: melody=${melodyBpm}, drums=${drumBpm}, ratio=${bpmSyncRatio.toFixed(4)}`
+                                        `BPM sync toegepast voor level ${levelNum} drums: melody=${melodyBpm}, drums=${drumBpm}, ratio=${bpmSyncRatio.toFixed(4)}, levelScale=${levelTempoScale.toFixed(4)}`
                                     );
                                 }
                             } catch (drumErr) {
@@ -4596,6 +4892,10 @@
             }
             
             // Update tiles
+            const cheatAutoplayDelayFrames = Math.max(0, Math.round(CHEAT_AUTOPLAY_DELAY_SECONDS * FPS));
+            const cheatAutoplayDelayPx = cheatAutoplayDelayFrames * Math.max(0.1, gameState.tileSpeed);
+            const cheatsAutoHitY = BAR_Y + cheatAutoplayDelayPx;
+
             for (let i = gameState.tiles.length - 1; i >= 0; i--) {
                 const tile = gameState.tiles[i];
 
@@ -4620,8 +4920,8 @@
                 // Cheats: auto-hit tiles before they would miss (like Python version)
                 // This must come BEFORE the miss check!
                 if (gameState.settings.cheatsEnabled && !tile.hit && !tile.missed && !tile.holding) {
-                    // Auto-hit when tile's bottom reaches the bar area
-                    if (tile.y + tile.height >= BAR_Y) {
+                    // Auto-hit with small delay for better sync with drum backing
+                    if (tile.y + tile.height >= cheatsAutoHitY) {
                         if (tile.isDrum && !tile.drumPlayedAtBar) {
                             playDrumHit(tile.noteNum, tile.velocity);
                             tile.drumPlayedAtBar = true;
@@ -4653,7 +4953,8 @@
                 }
 
                 if (tile.isDrum && !tile.drumPlayedAtBar && !tile.missed) {
-                    if (tile.y + tile.height >= BAR_Y) {
+                    const drumTriggerY = gameState.settings.cheatsEnabled ? cheatsAutoHitY : BAR_Y;
+                    if (tile.y + tile.height >= drumTriggerY) {
                         playDrumHit(tile.noteNum, tile.velocity);
                         tile.drumPlayedAtBar = true;
                     }
