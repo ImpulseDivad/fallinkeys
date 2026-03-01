@@ -704,6 +704,8 @@
             currentLevel: null,
             levelNotes: [],
             levelNoteIndex: 0,
+            backgroundDrumEvents: [],
+            backgroundDrumIndex: 0,
             useMidiSchedule: false,
             cheatsUsedThisRun: false,
             
@@ -768,6 +770,7 @@
             audioContext: null,
             audioMasterGain: null,
             audioCompressor: null,
+            audioMelodicGain: null,
             oscillators: {},
             noteOnTimestamps: {},
             lastGlobalNoteOnMs: 0,
@@ -793,7 +796,7 @@
                 gameState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
-            if (!gameState.audioCompressor || !gameState.audioMasterGain) {
+            if (!gameState.audioCompressor || !gameState.audioMasterGain || !gameState.audioMelodicGain) {
                 const ctx = gameState.audioContext;
                 const compressor = ctx.createDynamicsCompressor();
                 compressor.threshold.setValueAtTime(-20, ctx.currentTime);
@@ -801,6 +804,10 @@
                 compressor.ratio.setValueAtTime(4, ctx.currentTime);
                 compressor.attack.setValueAtTime(0.003, ctx.currentTime);
                 compressor.release.setValueAtTime(0.23, ctx.currentTime);
+
+                const melodic = ctx.createGain();
+                melodic.gain.setValueAtTime(1.0, ctx.currentTime);
+                melodic.connect(compressor);
 
                 const master = ctx.createGain();
                 master.gain.setValueAtTime(0.72, ctx.currentTime);
@@ -810,13 +817,29 @@
 
                 gameState.audioCompressor = compressor;
                 gameState.audioMasterGain = master;
+                gameState.audioMelodicGain = melodic;
             }
 
             syncMasterVolume();
         }
 
         function getAudioOutputNode(ctx) {
+            return gameState.audioMelodicGain || gameState.audioCompressor || ctx.destination;
+        }
+
+        function getDrumOutputNode(ctx) {
             return gameState.audioCompressor || ctx.destination;
+        }
+
+        function triggerKickSidechain() {
+            if (!gameState.audioContext || !gameState.audioMelodicGain) return;
+            const now = gameState.audioContext.currentTime;
+            const gainParam = gameState.audioMelodicGain.gain;
+            const duckTo = 0.42;
+            gainParam.cancelScheduledValues(now);
+            gainParam.setValueAtTime(Math.max(gainParam.value || 1, 0.0001), now);
+            gainParam.linearRampToValueAtTime(duckTo, now + 0.008);
+            gainParam.exponentialRampToValueAtTime(1.0, now + 0.24);
         }
 
         function syncMasterVolume() {
@@ -854,6 +877,18 @@
             }
 
             return Math.min(sameVoiceGain, sequenceGain);
+        }
+
+        function getPerNoteMixTrim(column, noteNum = null) {
+            if (gameState.currentLevel === 1) {
+                const pitchClass = noteNum !== null && noteNum !== undefined
+                    ? (noteNum % 12)
+                    : column;
+                if (pitchClass === 11) {
+                    return 0.72;
+                }
+            }
+            return 1;
         }
 
         function getPianoLowBoost(freq) {
@@ -990,9 +1025,116 @@
             const freq = noteNum ? getMidiFrequency(noteNum) : (BASE_FREQUENCIES[column] || 440);
             const instrument = gameState.shop.selectedInstrument;
             const rapidGain = getRapidNoteAttenuation(column, noteNum);
-            if (instrument === 2) { playSaxophoneNote(ctx, freq, duration, rapidGain); }
-            else if (instrument === 1) { playTrumpetNote(ctx, freq, duration, rapidGain); }
-            else { playPianoNote(ctx, freq, duration, rapidGain); }
+            const mixTrim = getPerNoteMixTrim(column, noteNum);
+            const finalGain = rapidGain * mixTrim;
+            if (instrument === 2) { playSaxophoneNote(ctx, freq, duration, finalGain); }
+            else if (instrument === 1) { playTrumpetNote(ctx, freq, duration, finalGain); }
+            else { playPianoNote(ctx, freq, duration, finalGain); }
+        }
+
+        function playDrumHit(midiNote = 36, velocity = 100) {
+            if (!gameState.settings.soundEnabled) return;
+            initAudio();
+            const ctx = gameState.audioContext;
+            const now = ctx.currentTime;
+
+            const velocityNorm = Math.max(0.2, Math.min((velocity || 100) / 127, 1));
+            const baseLevel = gameState.settings.volume * velocityNorm * 1.9;
+            const isKick = midiNote <= 36;
+            const isSnare = midiNote > 36 && midiNote <= 40;
+            const isHat = midiNote >= 41;
+
+            const output = getDrumOutputNode(ctx);
+
+            const noiseBuffer = ensureSaxNoiseBuffer(ctx);
+
+            if (isKick) {
+                triggerKickSidechain();
+                const body = ctx.createOscillator();
+                const bodyGain = ctx.createGain();
+                body.type = 'sine';
+                body.frequency.setValueAtTime(140, now);
+                body.frequency.exponentialRampToValueAtTime(42, now + 0.13);
+                bodyGain.gain.setValueAtTime(baseLevel * 1.95, now);
+                bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+                body.connect(bodyGain);
+                bodyGain.connect(output);
+                body.start(now);
+                body.stop(now + 0.2);
+
+                const click = ctx.createBufferSource();
+                click.buffer = noiseBuffer;
+                const clickLp = ctx.createBiquadFilter();
+                clickLp.type = 'lowpass';
+                clickLp.frequency.setValueAtTime(2000, now);
+                const clickGain = ctx.createGain();
+                clickGain.gain.setValueAtTime(baseLevel * 0.28, now);
+                clickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.03);
+                click.connect(clickLp);
+                clickLp.connect(clickGain);
+                clickGain.connect(output);
+                click.start(now);
+                click.stop(now + 0.04);
+                return;
+            }
+
+            if (isSnare) {
+                const body = ctx.createOscillator();
+                const bodyGain = ctx.createGain();
+                body.type = 'triangle';
+                body.frequency.setValueAtTime(220, now);
+                body.frequency.exponentialRampToValueAtTime(150, now + 0.08);
+                bodyGain.gain.setValueAtTime(baseLevel * 0.75, now);
+                bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+                body.connect(bodyGain);
+                bodyGain.connect(output);
+                body.start(now);
+                body.stop(now + 0.14);
+
+                const noise = ctx.createBufferSource();
+                noise.buffer = noiseBuffer;
+                const hp = ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.setValueAtTime(1600, now);
+                const bp = ctx.createBiquadFilter();
+                bp.type = 'bandpass';
+                bp.frequency.setValueAtTime(2600, now);
+                bp.Q.setValueAtTime(0.7, now);
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.setValueAtTime(baseLevel * 1.08, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+                noise.connect(hp);
+                hp.connect(bp);
+                bp.connect(noiseGain);
+                noiseGain.connect(output);
+                noise.start(now);
+                noise.stop(now + 0.18);
+                return;
+            }
+
+            if (isHat) {
+                const hat = ctx.createBufferSource();
+                hat.buffer = noiseBuffer;
+                const hp = ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.setValueAtTime(5200, now);
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.frequency.setValueAtTime(11000, now);
+                const hatGain = ctx.createGain();
+                hatGain.gain.setValueAtTime(baseLevel * 0.34, now);
+                hatGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+                hat.connect(hp);
+                hp.connect(lp);
+                lp.connect(hatGain);
+                hatGain.connect(output);
+                hat.start(now);
+                hat.stop(now + 0.07);
+            }
+        }
+
+        function getSpawnToBarFrames() {
+            return Math.max(1, Math.round(BAR_Y / Math.max(0.1, gameState.tileSpeed)));
         }
         
         function playPianoNote(ctx, freq, duration, noteGain = 1) {
@@ -1294,8 +1436,9 @@
             const instrument = gameState.shop.selectedInstrument;
             const now = ctx.currentTime;
             const rapidGain = getRapidNoteAttenuation(column, noteNum);
+            const mixTrim = getPerNoteMixTrim(column, noteNum);
             const eqProfile = instrument === 0 ? 'piano' : 'general';
-            const volume = gameState.settings.volume * getEqualLoudnessGain(freq, eqProfile) * 0.68 * rapidGain;
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq, eqProfile) * 0.68 * rapidGain * mixTrim;
             const voiceKey = explicitVoiceKey || getSustainVoiceKey(column, noteNum);
             stopSustainSound(voiceKey);
 
@@ -1617,10 +1760,149 @@
         // ============================================
         // Tile Class// Tile Class
         // ============================================
+        function getThemeTilePalette(themeIndex) {
+            if (themeIndex === 1) {
+                return {
+                    base: '#123f84',
+                    active: '#2d79e0',
+                    stroke: '#0a1f45',
+                    label: '#e6f2ff'
+                };
+            }
+
+            if (themeIndex === 2) {
+                return {
+                    base: '#7a1b1b',
+                    active: '#c4412f',
+                    stroke: '#3a0f0f',
+                    label: '#ffe8d8'
+                };
+            }
+
+            if (themeIndex === 3) {
+                return {
+                    base: '#ffd400',
+                    active: '#fff27a',
+                    stroke: '#7f6500',
+                    label: '#2b2300'
+                };
+            }
+
+            if (themeIndex === 4) {
+                return {
+                    base: '#9cdcff',
+                    active: '#e2f6ff',
+                    stroke: '#2b6f94',
+                    label: '#0f3550'
+                };
+            }
+
+            return {
+                base: TILE_COLOR,
+                active: gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR,
+                stroke: '#000000',
+                label: '#000000'
+            };
+        }
+
+        function drawLightningPatternOnTile(tile, alpha = 1) {
+            const x = tile.x;
+            const y = tile.y;
+            const w = tile.width;
+            const h = tile.height;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            ctx.globalAlpha *= Math.max(0.2, Math.min(1, alpha));
+            ctx.strokeStyle = '#fff8be';
+            ctx.lineWidth = 1.4;
+
+            const bolts = 3;
+            for (let i = 0; i < bolts; i++) {
+                const bx = x + (w * (0.2 + (i * 0.3)));
+                const top = y + 3;
+                const bottom = y + h - 4;
+                const mid1 = top + (h * 0.26);
+                const mid2 = top + (h * 0.56);
+
+                ctx.beginPath();
+                ctx.moveTo(bx - 2, top);
+                ctx.lineTo(bx + 3, mid1);
+                ctx.lineTo(bx - 1, mid1 + 6);
+                ctx.lineTo(bx + 4, mid2);
+                ctx.lineTo(bx + 1, bottom);
+                ctx.stroke();
+            }
+
+            ctx.restore();
+        }
+
+        function drawIcePatternOnTile(tile, alpha = 1) {
+            const x = tile.x;
+            const y = tile.y;
+            const w = tile.width;
+            const h = tile.height;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            ctx.globalAlpha *= Math.max(0.2, Math.min(1, alpha));
+            ctx.strokeStyle = '#f3fdff';
+            ctx.fillStyle = '#f6feff';
+
+            const flakeCount = Math.max(2, Math.min(4, Math.round(w / 14)));
+            const centers = [];
+            for (let i = 0; i < flakeCount; i++) {
+                const cx = x + ((i + 1) * w / (flakeCount + 1));
+                const cy = y + h * (i % 2 === 0 ? 0.34 : 0.68);
+                centers.push({ x: cx, y: cy });
+            }
+
+            for (const center of centers) {
+                const radius = Math.max(4.5, Math.min(8.8, (Math.min(w, h) * 0.22)));
+                ctx.lineWidth = Math.max(1.2, radius * 0.16);
+
+                for (let arm = 0; arm < 6; arm++) {
+                    const a = (Math.PI / 3) * arm;
+                    const cosA = Math.cos(a);
+                    const sinA = Math.sin(a);
+                    const ex = center.x + (cosA * radius);
+                    const ey = center.y + (sinA * radius);
+
+                    ctx.beginPath();
+                    ctx.moveTo(center.x, center.y);
+                    ctx.lineTo(ex, ey);
+                    ctx.stroke();
+
+                    const branchLen = radius * 0.38;
+                    const bx1 = center.x + (cosA * radius * 0.62);
+                    const by1 = center.y + (sinA * radius * 0.62);
+                    const sideA = a + (Math.PI / 6);
+                    const sideB = a - (Math.PI / 6);
+
+                    ctx.beginPath();
+                    ctx.moveTo(bx1, by1);
+                    ctx.lineTo(bx1 + Math.cos(sideA) * branchLen, by1 + Math.sin(sideA) * branchLen);
+                    ctx.moveTo(bx1, by1);
+                    ctx.lineTo(bx1 + Math.cos(sideB) * branchLen, by1 + Math.sin(sideB) * branchLen);
+                    ctx.stroke();
+                }
+
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, Math.max(1.1, radius * 0.14), 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+        }
+
         let tileIdCounter = 1;
 
         class Tile {
-            constructor(column, lengthPixels = null, noteNum = null) {
+            constructor(column, lengthPixels = null, noteNum = null, isDrum = false, velocity = 100) {
             this.id = tileIdCounter++;
                 this.column = column;
                 this.width = column_widths[column] - (BLACK_INDICES.includes(column) ? 2 : 4);
@@ -1641,6 +1923,9 @@
                 this.fadeTimer = 0;
                 this.fadeDuration = 20;
                 this.noteNum = noteNum;
+                this.isDrum = !!isDrum;
+                this.velocity = velocity;
+                this.drumPlayedAtBar = false;
                 this.sustainVoiceKey = `hold:${this.id}`;
                 this.holdFramesRequired = lengthPixels ? Math.floor(lengthPixels / this.speed) : 0;
                 this.holdFramesElapsed = 0;
@@ -1689,14 +1974,18 @@
                 
                 let color = TILE_COLOR;
                 let alpha = 1;
+                const themeIndex = gameState.shop.selectedTheme | 0;
+                const palette = getThemeTilePalette(themeIndex);
                 
                 if (this.hit) {
                     alpha = 1 - (this.fadeTimer / this.fadeDuration);
-                    color = gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR;
+                    color = palette.active;
                 } else if (this.missed) {
                     color = TILE_MISS_COLOR;
                 } else if (this.holding) {
-                    color = gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR;
+                    color = palette.active;
+                } else {
+                    color = palette.base;
                 }
 
                 if (gameState.tutorialMode && gameState.tutorialOverlayActive && !this.hit && !this.missed) {
@@ -1708,7 +1997,15 @@
                 ctx.fillStyle = color;
                 ctx.fillRect(this.x, this.y, this.width, this.height);
 
-                if (!this.hit && !this.missed && !this.holding && color === TILE_COLOR && !gameState.tutorialMode) {
+                if (!this.missed && themeIndex === 3) {
+                    drawLightningPatternOnTile(this, this.hit || this.holding ? 0.95 : 0.8);
+                }
+
+                if (!this.missed && themeIndex === 4) {
+                    drawIcePatternOnTile(this, this.hit || this.holding ? 0.9 : 0.76);
+                }
+
+                if (!this.hit && !this.missed && !this.holding && themeIndex === 0 && !gameState.tutorialMode) {
                     const glossHeight = Math.max(3, Math.floor(this.height * 0.3));
                     ctx.fillStyle = 'rgba(255, 255, 210, 0.38)';
                     ctx.fillRect(this.x + 1, this.y + 1, Math.max(2, this.width - 2), glossHeight);
@@ -1717,13 +2014,13 @@
                     ctx.fillRect(this.x + 1, this.y + Math.max(0, this.height - 5), Math.max(2, this.width - 2), 4);
                 }
                 
-                ctx.strokeStyle = '#000';
+                ctx.strokeStyle = this.missed ? '#000' : palette.stroke;
                 ctx.lineWidth = 1;
                 ctx.strokeRect(this.x, this.y, this.width, this.height);
                 
                 // Draw label
                 const label = getColumnLabel(this.column);
-                ctx.fillStyle = '#000';
+                ctx.fillStyle = this.missed ? '#000' : palette.label;
                 ctx.font = 'bold 12px Arial';
                 ctx.textAlign = 'center';
                 ctx.fillText(label, this.x + this.width/2, this.y + this.height - 8);
@@ -3250,7 +3547,10 @@
                         column: startNote.note % 12,
                         time: startNote.startMs,
                         note: startNote.note,
-                        durationMs: durationMs
+                        durationMs: durationMs,
+                        channel: startNote.channel,
+                        velocity: startNote.velocity,
+                        isDrum: startNote.channel === 9
                     });
                     
                     delete activeNotes[key];
@@ -3264,7 +3564,10 @@
                     column: startNote.note % 12,
                     time: startNote.startMs,
                     note: startNote.note,
-                    durationMs: 100
+                    durationMs: 100,
+                    channel: startNote.channel,
+                    velocity: startNote.velocity,
+                    isDrum: startNote.channel === 9
                 });
             }
             
@@ -3275,12 +3578,22 @@
             const unique = {};
             for (const n of rawNotes) {
                 const timeWindow = Math.round(n.time / 30) * 30;
-                const key = `${n.column}_${timeWindow}`;
+                const key = `${n.column}_${timeWindow}_${n.channel}`;
                 if (!unique[key]) {
-                    unique[key] = { column: n.column, time: n.time, note: n.note, durationMs: n.durationMs, originalNotes: [n.note] };
+                    unique[key] = {
+                        column: n.column,
+                        time: n.time,
+                        note: n.note,
+                        durationMs: n.durationMs,
+                        originalNotes: [n.note],
+                        channel: n.channel,
+                        velocity: n.velocity,
+                        isDrum: !!n.isDrum
+                    };
                 } else {
                     unique[key].originalNotes.push(n.note);
                     unique[key].durationMs = Math.max(unique[key].durationMs, n.durationMs);
+                    unique[key].velocity = Math.max(unique[key].velocity || 0, n.velocity || 0);
                 }
             }
             let notes = Object.values(unique).sort((a, b) => a.time - b.time);
@@ -3292,6 +3605,11 @@
             // FILTER 3: Remove duplicate octaves (keep highest octave)
             const filteredNotes = [];
             for (const n of notes) {
+                if (n.isDrum) {
+                    filteredNotes.push(n);
+                    continue;
+                }
+
                 const originalNotes = n.originalNotes || [n.note];
                 const byPitchClass = {};
                 for (const noteNum of originalNotes) {
@@ -3338,7 +3656,16 @@
                 const durationFrames = n.durationMs * FPS / 1000;
                 let lengthPixels = Math.max(TILE_SIZE, durationFrames * gameState.tileSpeed);
                 lengthPixels = Math.min(lengthPixels, 400);
-                return { column: n.column, time: n.time, note: n.note, durationMs: n.durationMs, lengthPixels: lengthPixels };
+                return {
+                    column: n.column,
+                    time: n.time,
+                    note: n.note,
+                    durationMs: n.durationMs,
+                    lengthPixels: lengthPixels,
+                    channel: n.channel,
+                    velocity: n.velocity,
+                    isDrum: !!n.isDrum
+                };
             });
             
             // Calculate analysis stats
@@ -3367,7 +3694,10 @@
                 frame: Math.floor(n.time / (1000 / FPS)),
                 note: n.note,
                 durationMs: n.durationMs,
-                lengthPixels: n.lengthPixels
+                lengthPixels: n.lengthPixels,
+                channel: n.channel,
+                velocity: n.velocity,
+                isDrum: !!n.isDrum
             }));
             
             console.log('MIDI Analysis:', analysis);
@@ -3481,6 +3811,8 @@
             hideElement('levelsOverlay');
             gameState.currentLevel = levelNum;
             gameState.tutorialMode = false;
+            gameState.backgroundDrumEvents = [];
+            gameState.backgroundDrumIndex = 0;
             
             // MIDI bestandsnamen voor elk level
             const levelFileNames = {
@@ -3506,6 +3838,38 @@
                     if (result.notes.length > 0) {
                         gameState.levelNotes = result.notes;
                         gameState.useMidiSchedule = true;
+
+                        if (levelNum === 1) {
+                            try {
+                                const drumCandidates = [
+                                    'Levels/sunrise drums.mid',
+                                    './Levels/sunrise drums.mid',
+                                    '../Levels/sunrise drums.mid'
+                                ];
+                                const encodedDrumCandidates = drumCandidates.map(path => encodeURI(path));
+                                const allDrumCandidates = [...new Set([...drumCandidates, ...encodedDrumCandidates])];
+                                const drumData = await loadMidiFromCandidates(allDrumCandidates);
+                                const drumResult = parseMidiFile(drumData);
+                                const travelFrames = getSpawnToBarFrames();
+                                const drumDelayFrames = Math.round(0.1 * FPS);
+                                const drumPitchSet = new Set([35, 36, 38, 40, 41, 42, 44, 46, 49, 51]);
+
+                                gameState.backgroundDrumEvents = drumResult.notes
+                                    .filter(n => drumPitchSet.has(n.note))
+                                    .map(n => ({
+                                        frame: (n.frame || 0) + travelFrames + drumDelayFrames,
+                                        note: n.note,
+                                        velocity: n.velocity || 100
+                                    }))
+                                    .sort((a, b) => a.frame - b.frame);
+                                gameState.backgroundDrumIndex = 0;
+                            } catch (drumErr) {
+                                console.warn('Sunrise drum background kon niet geladen worden:', drumErr);
+                                gameState.backgroundDrumEvents = [];
+                                gameState.backgroundDrumIndex = 0;
+                            }
+                        }
+
                         lastMidiAnalysis = result.analysis;
                         pendingLevelStart = null;
                         startLevelGame();
@@ -3519,11 +3883,15 @@
                         alert('Levels via MIDI laden werkt niet vanuit een lokaal bestand (file://). De level start nu met een fallback patroon. Gebruik localhost (bijv. Live Server) voor de echte MIDI levels.');
                         gameState.levelNotes = generateLevelPattern(levelNum);
                         gameState.useMidiSchedule = true;
+                        gameState.backgroundDrumEvents = [];
+                        gameState.backgroundDrumIndex = 0;
                         startLevelGame();
                     } else {
                         alert('Kon MIDI bestand niet laden: ' + err.message + '\nDe level start nu met een fallback patroon.');
                         gameState.levelNotes = generateLevelPattern(levelNum);
                         gameState.useMidiSchedule = true;
+                        gameState.backgroundDrumEvents = [];
+                        gameState.backgroundDrumIndex = 0;
                         startLevelGame();
                     }
                 }
@@ -3531,6 +3899,8 @@
                 // Fallback naar gegenereerd pattern
                 gameState.levelNotes = generateLevelPattern(levelNum);
                 gameState.useMidiSchedule = true;
+                gameState.backgroundDrumEvents = [];
+                gameState.backgroundDrumIndex = 0;
                 startLevelGame();
             }
         }
@@ -3588,6 +3958,7 @@
             gameState.pressedColumnCounts = Array(NUM_COLUMNS).fill(0);
             gameState.spawnCounter = 0;
             gameState.gameFrame = 0;
+            gameState.backgroundDrumIndex = 0;
             gameState.activeHolds = {};
             gameState.lives = gameState.maxLives;
             gameState.cheatsUsedThisRun = !!gameState.settings.cheatsEnabled;
@@ -3922,7 +4293,14 @@
                         gameState.combo++;
                         gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
                         showJudgement('Perfect');
-                        playNote(column, 0.18, tile.noteNum);
+                        if (tile.isDrum) {
+                            if (!tile.drumPlayedAtBar) {
+                                playDrumHit(tile.noteNum, tile.velocity);
+                                tile.drumPlayedAtBar = true;
+                            }
+                        } else {
+                            playNote(column, 0.18, tile.noteNum);
+                        }
                         delete gameState.activeHolds[column];
                         return;
                     }
@@ -3964,7 +4342,14 @@
                     
                     // Stop the key press sustain and play tap with correct MIDI pitch
                     stopSustainSound(column);
-                    playNote(column, 0.2, tile.noteNum);
+                    if (tile.isDrum) {
+                        if (!tile.drumPlayedAtBar) {
+                            playDrumHit(tile.noteNum, tile.velocity);
+                            tile.drumPlayedAtBar = true;
+                        }
+                    } else {
+                        playNote(column, 0.2, tile.noteNum);
+                    }
                 }
             } else {
                 // Wrong key - no tile in hit zone
@@ -4144,6 +4529,18 @@
             if (!blockingTile) {
                 gameState.gameFrame++;
             }
+
+            if (!blockingTile && gameState.backgroundDrumEvents.length > 0) {
+                while (gameState.backgroundDrumIndex < gameState.backgroundDrumEvents.length) {
+                    const drumEvent = gameState.backgroundDrumEvents[gameState.backgroundDrumIndex];
+                    if (drumEvent.frame <= gameState.gameFrame) {
+                        playDrumHit(drumEvent.note, drumEvent.velocity || 100);
+                        gameState.backgroundDrumIndex++;
+                    } else {
+                        break;
+                    }
+                }
+            }
             
             // Spawn tiles
             if (!blockingTile && gameState.useMidiSchedule && gameState.levelNotes.length > 0) {
@@ -4154,7 +4551,7 @@
                         // Gebruik lengthPixels van de MIDI note (berekend in parser)
                         const holdLength = note.lengthPixels || TILE_SIZE;
                         
-                        gameState.tiles.push(new Tile(note.column, holdLength, note.note));
+                        gameState.tiles.push(new Tile(note.column, holdLength, note.note, note.isDrum, note.velocity));
                         gameState.levelNoteIndex++;
                     } else {
                         break;
@@ -4207,6 +4604,11 @@
                 if (gameState.settings.cheatsEnabled && !tile.hit && !tile.missed && !tile.holding) {
                     // Auto-hit when tile's bottom reaches the bar area
                     if (tile.y + tile.height >= BAR_Y) {
+                        if (tile.isDrum && !tile.drumPlayedAtBar) {
+                            playDrumHit(tile.noteNum, tile.velocity);
+                            tile.drumPlayedAtBar = true;
+                        }
+
                         // Check if this is a hold note
                         if (tile.holdFramesRequired > 10) {
                             // Start holding - play sustain sound
@@ -4219,9 +4621,23 @@
                             // Regular note - play sound for duration based on tile height
                             tile.hit = true;
                             const durationSeconds = Math.max(0.15, Math.min(tile.height / gameState.tileSpeed / FPS, 3.0));
-                            playNote(tile.column, durationSeconds, tile.noteNum);
+                            if (tile.isDrum) {
+                                if (!tile.drumPlayedAtBar) {
+                                    playDrumHit(tile.noteNum, tile.velocity);
+                                    tile.drumPlayedAtBar = true;
+                                }
+                            } else {
+                                playNote(tile.column, durationSeconds, tile.noteNum);
+                            }
                             gameState.score += 1;
                         }
+                    }
+                }
+
+                if (tile.isDrum && !tile.drumPlayedAtBar && !tile.missed) {
+                    if (tile.y + tile.height >= BAR_Y) {
+                        playDrumHit(tile.noteNum, tile.velocity);
+                        tile.drumPlayedAtBar = true;
                     }
                 }
                 
