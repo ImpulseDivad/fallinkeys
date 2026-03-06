@@ -435,6 +435,11 @@
         .shop-item-label {
             font-size: 12px;
             font-weight: bold;
+            width: 100%;
+            text-align: center;
+            line-height: 1.2;
+            padding: 0 4px;
+            word-break: break-word;
         }
         .shop-item-lock {
             margin-top: 6px;
@@ -634,11 +639,11 @@
         const KEY_PARTICLE_EMIT_INTERVAL = 1;
         const MAX_KEY_PARTICLES = 320;
         const GALACTIC_PARTICLE_SOFT_CAP = 150;
-        const ICE_PARTICLE_SOFT_CAP = 110;
+        const ICE_PARTICLE_SOFT_CAP = 70;
         const MENU_DEMO_MAX_TILES = 14;
         const MENU_DEMO_UPDATE_EVERY_N_FRAMES = 2;
         const ICE_FLAKE_COUNT = 1;
-        const ICE_DETAIL_PARTICLE_THRESHOLD = 120;
+        const ICE_DETAIL_PARTICLE_THRESHOLD = 70;
         const BLACK_INDEX_SET = new Set(BLACK_INDICES);
         
         // Column configuration
@@ -737,7 +742,7 @@
                 selectedInstrument: 0,
                 unlockedThemes: [true, true, true, true, true, true, true],
                 unlockedBackgrounds: [true, true, true],
-                unlockedInstruments: [true, true, true]
+                unlockedInstruments: [true, true, true, true, true]
             },
             
             // Level ratings
@@ -751,6 +756,7 @@
             
             // Hold notes
             activeHolds: {},
+            customUploadRun: false,
             
             // Miss/wrong key handling (like Python: show red, then game over after delay)
             missPending: false,
@@ -781,7 +787,9 @@
             noteOnTimestamps: {},
             lastGlobalNoteOnMs: 0,
             trumpetNoiseBuffer: null,
-            saxNoiseBuffer: null
+            saxNoiseBuffer: null,
+            guitarRoomImpulse: null,
+            electricDriveCurve: null
         };
 
         const scoreDisplayEl = document.getElementById('scoreDisplay');
@@ -960,6 +968,46 @@
             return 9.0;
         }
 
+        function getGuitarBodyResonanceFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 82), 1175);
+            return mapRange(clamped, 82, 1175, 155, 320);
+        }
+
+        function getGuitarBoxResonanceFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 82), 1175);
+            return mapRange(clamped, 82, 1175, 235, 520);
+        }
+
+        function getGuitarLowpassFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 82), 1175);
+            return mapRange(clamped, 82, 1175, 3100, 5600);
+        }
+
+        function getGuitarBrightness(freq) {
+            if (freq <= 120) return 0.92;
+            if (freq <= 220) return mapRange(freq, 120, 220, 0.92, 1.04);
+            if (freq <= 440) return mapRange(freq, 220, 440, 1.04, 1.15);
+            return 1.22;
+        }
+
+        function getElectricGuitarLowpassFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 82), 1175);
+            return mapRange(clamped, 82, 1175, 2800, 5200);
+        }
+
+        function ensureElectricDriveCurve() {
+            if (gameState.electricDriveCurve) return gameState.electricDriveCurve;
+            const amount = 185;
+            const length = 4096;
+            const curve = new Float32Array(length);
+            for (let i = 0; i < length; i++) {
+                const x = (i * 2) / (length - 1) - 1;
+                curve[i] = ((1 + amount) * x) / (1 + amount * Math.abs(x));
+            }
+            gameState.electricDriveCurve = curve;
+            return curve;
+        }
+
         function ensureSaxNoiseBuffer(ctx) {
             if (gameState.saxNoiseBuffer) return gameState.saxNoiseBuffer;
             const bufferLength = Math.max(1, Math.floor(ctx.sampleRate * 0.4));
@@ -986,6 +1034,30 @@
                 data[i] = x * 0.75;
             }
             gameState.trumpetNoiseBuffer = buffer;
+            return buffer;
+        }
+
+        function ensureGuitarRoomImpulse(ctx) {
+            if (gameState.guitarRoomImpulse) return gameState.guitarRoomImpulse;
+            const seconds = 0.42;
+            const length = Math.max(1, Math.floor(ctx.sampleRate * seconds));
+            const buffer = ctx.createBuffer(2, length, ctx.sampleRate);
+
+            for (let ch = 0; ch < 2; ch++) {
+                const data = buffer.getChannelData(ch);
+                let prev = 0;
+                for (let i = 0; i < length; i++) {
+                    const t = i / (length - 1 || 1);
+                    const decay = Math.pow(1 - t, 2.4);
+                    const white = (Math.random() * 2 - 1);
+                    const colored = (prev * 0.64) + (white * 0.36);
+                    prev = colored;
+                    const earlyReflections = (i < length * 0.2) ? 1.0 : 0.68;
+                    data[i] = colored * decay * earlyReflections * 0.48;
+                }
+            }
+
+            gameState.guitarRoomImpulse = buffer;
             return buffer;
         }
 
@@ -1033,7 +1105,9 @@
             const rapidGain = getRapidNoteAttenuation(column, noteNum);
             const mixTrim = getPerNoteMixTrim(column, noteNum);
             const finalGain = rapidGain * mixTrim;
-            if (instrument === 2) { playSaxophoneNote(ctx, freq, duration, finalGain); }
+            if (instrument === 4) { playElectricGuitarNote(ctx, freq, duration, finalGain); }
+            else if (instrument === 3) { playGuitarNote(ctx, freq, duration, finalGain); }
+            else if (instrument === 2) { playSaxophoneNote(ctx, freq, duration, finalGain); }
             else if (instrument === 1) { playTrumpetNote(ctx, freq, duration, finalGain); }
             else { playPianoNote(ctx, freq, duration, finalGain); }
         }
@@ -1412,6 +1486,193 @@
             reedNoise.stop(stopAt);
         }
 
+        function playGuitarNote(ctx, freq, duration, noteGain = 1) {
+            const now = ctx.currentTime;
+            const noteDuration = Math.max(duration, 0.22);
+            const brightness = getGuitarBrightness(freq);
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.8 * brightness * noteGain;
+            const attackTime = 0.004;
+            const bloomTime = 0.06;
+            const releaseTime = Math.min(Math.max(noteDuration * 0.5, 0.13), 0.28);
+            const releaseStart = now + Math.max(noteDuration - releaseTime, attackTime + bloomTime + 0.02);
+            const endTime = releaseStart + releaseTime;
+
+            const masterGain = ctx.createGain();
+            masterGain.connect(getAudioOutputNode(ctx));
+            const hp = ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.setValueAtTime(108, now);
+            const body = ctx.createBiquadFilter();
+            body.type = 'peaking';
+            body.frequency.setValueAtTime(getGuitarBodyResonanceFreq(freq), now);
+            body.Q.setValueAtTime(1.0, now);
+            body.gain.setValueAtTime(2.4, now);
+            const box = ctx.createBiquadFilter();
+            box.type = 'peaking';
+            box.frequency.setValueAtTime(getGuitarBoxResonanceFreq(freq), now);
+            box.Q.setValueAtTime(0.9, now);
+            box.gain.setValueAtTime(1.6, now);
+            const presence = ctx.createBiquadFilter();
+            presence.type = 'peaking';
+            presence.frequency.setValueAtTime(2980, now);
+            presence.Q.setValueAtTime(0.88, now);
+            presence.gain.setValueAtTime(2.15 * brightness, now);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.setValueAtTime(getGuitarLowpassFreq(freq), now);
+            lp.Q.setValueAtTime(0.72, now);
+            hp.connect(body); body.connect(box); box.connect(presence); presence.connect(lp); lp.connect(masterGain);
+
+            const toneGain = ctx.createGain();
+            toneGain.connect(hp);
+            toneGain.gain.setValueAtTime(0.0001, now);
+            toneGain.gain.linearRampToValueAtTime(volume, now + attackTime);
+            toneGain.gain.linearRampToValueAtTime(volume * 0.52, now + bloomTime);
+            toneGain.gain.setValueAtTime(volume * 0.52, releaseStart);
+            toneGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+            const oscMain = ctx.createOscillator();
+            const gainMain = ctx.createGain();
+            oscMain.type = 'triangle';
+            oscMain.frequency.setValueAtTime(freq, now);
+            oscMain.detune.setValueAtTime((Math.random() - 0.5) * 2.6, now);
+            gainMain.gain.setValueAtTime(volume * 0.39, now);
+            oscMain.connect(gainMain); gainMain.connect(toneGain);
+
+            const oscBody = ctx.createOscillator();
+            const gainBody = ctx.createGain();
+            oscBody.type = 'triangle';
+            oscBody.frequency.setValueAtTime(freq, now);
+            oscBody.detune.setValueAtTime((Math.random() - 0.5) * 3.5, now);
+            gainBody.gain.setValueAtTime(volume * 0.24, now);
+            oscBody.connect(gainBody); gainBody.connect(toneGain);
+
+            const oscSparkle = ctx.createOscillator();
+            const gainSparkle = ctx.createGain();
+            oscSparkle.type = 'sine';
+            oscSparkle.frequency.setValueAtTime(freq * 2, now);
+            oscSparkle.detune.setValueAtTime((Math.random() - 0.5) * 1.7, now);
+            gainSparkle.gain.setValueAtTime(volume * 0.065 * brightness, now);
+            oscSparkle.connect(gainSparkle); gainSparkle.connect(toneGain);
+
+            const pluckNoise = ctx.createBufferSource();
+            pluckNoise.buffer = ensureSaxNoiseBuffer(ctx);
+            const pluckHP = ctx.createBiquadFilter();
+            pluckHP.type = 'highpass';
+            pluckHP.frequency.setValueAtTime(1800, now);
+            const pluckBP = ctx.createBiquadFilter();
+            pluckBP.type = 'bandpass';
+            pluckBP.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 82), 1175), 82, 1175, 2100, 3300), now);
+            pluckBP.Q.setValueAtTime(1.1, now);
+            const pluckGain = ctx.createGain();
+            pluckGain.gain.setValueAtTime(0.0001, now);
+            pluckGain.gain.linearRampToValueAtTime(volume * 0.39, now + 0.003);
+            pluckGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+            pluckNoise.connect(pluckHP); pluckHP.connect(pluckBP); pluckBP.connect(pluckGain); pluckGain.connect(hp);
+
+            oscMain.start(now);
+            oscBody.start(now);
+            oscSparkle.start(now);
+            pluckNoise.start(now);
+
+            const stopAt = endTime + 0.05;
+            oscMain.stop(stopAt);
+            oscBody.stop(stopAt);
+            oscSparkle.stop(stopAt);
+            pluckNoise.stop(now + 0.06);
+        }
+
+        function playElectricGuitarNote(ctx, freq, duration, noteGain = 1) {
+            const now = ctx.currentTime;
+            const noteDuration = Math.max(duration, 0.2);
+            const brightness = getGuitarBrightness(freq);
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.74 * brightness * noteGain;
+            const releaseTime = Math.min(Math.max(noteDuration * 0.46, 0.11), 0.26);
+            const releaseStart = now + Math.max(noteDuration - releaseTime, 0.05);
+            const endTime = releaseStart + releaseTime;
+
+            const preGain = ctx.createGain();
+            preGain.connect(getAudioOutputNode(ctx));
+
+            const hp = ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.setValueAtTime(118, now);
+            const body = ctx.createBiquadFilter();
+            body.type = 'peaking';
+            body.frequency.setValueAtTime(190, now);
+            body.Q.setValueAtTime(0.95, now);
+            body.gain.setValueAtTime(1.2, now);
+            const drive = ctx.createWaveShaper();
+            drive.curve = ensureElectricDriveCurve();
+            drive.oversample = '4x';
+            const presence = ctx.createBiquadFilter();
+            presence.type = 'peaking';
+            presence.frequency.setValueAtTime(2350, now);
+            presence.Q.setValueAtTime(0.9, now);
+            presence.gain.setValueAtTime(2.55 * brightness, now);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.setValueAtTime(getElectricGuitarLowpassFreq(freq), now);
+            lp.Q.setValueAtTime(0.75, now);
+            const postHp = ctx.createBiquadFilter();
+            postHp.type = 'highpass';
+            postHp.frequency.setValueAtTime(95, now);
+
+            hp.connect(body); body.connect(drive); drive.connect(presence); presence.connect(lp); lp.connect(postHp); postHp.connect(preGain);
+
+            const toneGain = ctx.createGain();
+            toneGain.connect(hp);
+            toneGain.gain.setValueAtTime(0.0001, now);
+            toneGain.gain.linearRampToValueAtTime(volume, now + 0.006);
+            toneGain.gain.linearRampToValueAtTime(volume * 0.58, now + 0.08);
+            toneGain.gain.setValueAtTime(volume * 0.58, releaseStart);
+            toneGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+            const oscMain = ctx.createOscillator();
+            const gainMain = ctx.createGain();
+            oscMain.type = 'sawtooth';
+            oscMain.frequency.setValueAtTime(freq, now);
+            gainMain.gain.setValueAtTime(volume * 0.34, now);
+            oscMain.connect(gainMain); gainMain.connect(toneGain);
+
+            const oscDouble = ctx.createOscillator();
+            const gainDouble = ctx.createGain();
+            oscDouble.type = 'square';
+            oscDouble.frequency.setValueAtTime(freq, now);
+            oscDouble.detune.setValueAtTime(4.6, now);
+            gainDouble.gain.setValueAtTime(volume * 0.2, now);
+            oscDouble.connect(gainDouble); gainDouble.connect(toneGain);
+
+            const oscPick = ctx.createOscillator();
+            const gainPick = ctx.createGain();
+            oscPick.type = 'triangle';
+            oscPick.frequency.setValueAtTime(freq * 2, now);
+            gainPick.gain.setValueAtTime(volume * 0.08, now);
+            oscPick.connect(gainPick); gainPick.connect(toneGain);
+
+            const pickNoise = ctx.createBufferSource();
+            pickNoise.buffer = ensureSaxNoiseBuffer(ctx);
+            const noiseHP = ctx.createBiquadFilter();
+            noiseHP.type = 'highpass';
+            noiseHP.frequency.setValueAtTime(2600, now);
+            const noiseGain = ctx.createGain();
+            noiseGain.gain.setValueAtTime(0.0001, now);
+            noiseGain.gain.linearRampToValueAtTime(volume * 0.26, now + 0.004);
+            noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.03);
+            pickNoise.connect(noiseHP); noiseHP.connect(noiseGain); noiseGain.connect(hp);
+
+            oscMain.start(now);
+            oscDouble.start(now);
+            oscPick.start(now);
+            pickNoise.start(now);
+
+            const stopAt = endTime + 0.05;
+            oscMain.stop(stopAt);
+            oscDouble.stop(stopAt);
+            oscPick.stop(stopAt);
+            pickNoise.stop(now + 0.05);
+        }
+
         function getSustainVoiceKey(column, noteNum = null) {
             if (noteNum !== null && noteNum !== undefined) return `note:${noteNum}`;
             return `col:${column}`;
@@ -1447,6 +1708,202 @@
             const volume = gameState.settings.volume * getEqualLoudnessGain(freq, eqProfile) * 0.68 * rapidGain * mixTrim;
             const voiceKey = explicitVoiceKey || getSustainVoiceKey(column, noteNum);
             stopSustainSound(voiceKey);
+
+            if (instrument === 3) {
+                const brightness = getGuitarBrightness(freq);
+                const guitarVolume = volume * 0.86 * brightness;
+                const attackTime = 0.005;
+                const maxHold = Math.min(maxHoldSeconds || 30, 30);
+                const naturalEnd = now + maxHold;
+
+                const masterGain = ctx.createGain();
+                masterGain.connect(getAudioOutputNode(ctx));
+                const hp = ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.setValueAtTime(108, now);
+                const body = ctx.createBiquadFilter();
+                body.type = 'peaking';
+                body.frequency.setValueAtTime(getGuitarBodyResonanceFreq(freq), now);
+                body.Q.setValueAtTime(1.0, now);
+                body.gain.setValueAtTime(2.35, now);
+                const box = ctx.createBiquadFilter();
+                box.type = 'peaking';
+                box.frequency.setValueAtTime(getGuitarBoxResonanceFreq(freq), now);
+                box.Q.setValueAtTime(0.9, now);
+                box.gain.setValueAtTime(1.55, now);
+                const presence = ctx.createBiquadFilter();
+                presence.type = 'peaking';
+                presence.frequency.setValueAtTime(2920, now);
+                presence.Q.setValueAtTime(0.9, now);
+                presence.gain.setValueAtTime(2.0 * brightness, now);
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.frequency.setValueAtTime(getGuitarLowpassFreq(freq), now);
+                lp.Q.setValueAtTime(0.72, now);
+                hp.connect(body); body.connect(box); box.connect(presence); presence.connect(lp); lp.connect(masterGain);
+
+                const toneGain = ctx.createGain();
+                toneGain.connect(hp);
+                toneGain.gain.setValueAtTime(0.0001, now);
+                toneGain.gain.linearRampToValueAtTime(guitarVolume, now + attackTime);
+                toneGain.gain.linearRampToValueAtTime(guitarVolume * 0.5, now + 0.09);
+                toneGain.gain.setValueAtTime(guitarVolume * 0.5, naturalEnd - 0.28);
+                toneGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'triangle';
+                osc1.frequency.setValueAtTime(freq, now);
+                osc1.detune.setValueAtTime((Math.random() - 0.5) * 2.4, now);
+                gain1.gain.setValueAtTime(guitarVolume * 0.38, now);
+                osc1.connect(gain1); gain1.connect(toneGain);
+
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'triangle';
+                osc2.frequency.setValueAtTime(freq, now);
+                osc2.detune.setValueAtTime((Math.random() - 0.5) * 3.2, now);
+                gain2.gain.setValueAtTime(guitarVolume * 0.23, now);
+                osc2.connect(gain2); gain2.connect(toneGain);
+
+                const noiseSource = ctx.createBufferSource();
+                noiseSource.buffer = ensureSaxNoiseBuffer(ctx);
+                const noiseHP = ctx.createBiquadFilter();
+                noiseHP.type = 'highpass';
+                noiseHP.frequency.setValueAtTime(1700, now);
+                const noiseBP = ctx.createBiquadFilter();
+                noiseBP.type = 'bandpass';
+                noiseBP.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 82), 1175), 82, 1175, 2050, 3300), now);
+                noiseBP.Q.setValueAtTime(1.05, now);
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.0001, now);
+                noiseGain.gain.linearRampToValueAtTime(guitarVolume * 0.11, now + 0.008);
+                noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+                noiseSource.connect(noiseHP); noiseHP.connect(noiseBP); noiseBP.connect(noiseGain); noiseGain.connect(hp);
+
+                osc1.start(now); osc2.start(now); noiseSource.start(now);
+                osc1.stop(naturalEnd + 0.05); osc2.stop(naturalEnd + 0.05); noiseSource.stop(now + 0.1);
+
+                gameState.oscillators[voiceKey] = {
+                    oscillator: osc1,
+                    gainNode: toneGain,
+                    osc2: osc2,
+                    gain2: gain2,
+                    osc3: null,
+                    gain3: null,
+                    masterGain: masterGain,
+                    extraGainNodes: [noiseGain],
+                    extraOscillators: [noiseSource]
+                };
+                return;
+            }
+
+            if (instrument === 4) {
+                const brightness = getGuitarBrightness(freq);
+                const guitarVolume = volume * 0.74 * brightness;
+                const maxHold = Math.min(maxHoldSeconds || 30, 30);
+                const naturalEnd = now + maxHold;
+
+                const masterGain = ctx.createGain();
+                masterGain.connect(getAudioOutputNode(ctx));
+                const hp = ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.setValueAtTime(118, now);
+                const body = ctx.createBiquadFilter();
+                body.type = 'peaking';
+                body.frequency.setValueAtTime(190, now);
+                body.Q.setValueAtTime(0.95, now);
+                body.gain.setValueAtTime(1.25, now);
+                const drive = ctx.createWaveShaper();
+                drive.curve = ensureElectricDriveCurve();
+                drive.oversample = '4x';
+                const presence = ctx.createBiquadFilter();
+                presence.type = 'peaking';
+                presence.frequency.setValueAtTime(2380, now);
+                presence.Q.setValueAtTime(0.9, now);
+                presence.gain.setValueAtTime(2.4 * brightness, now);
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.frequency.setValueAtTime(getElectricGuitarLowpassFreq(freq), now);
+                lp.Q.setValueAtTime(0.75, now);
+                const postHp = ctx.createBiquadFilter();
+                postHp.type = 'highpass';
+                postHp.frequency.setValueAtTime(96, now);
+                hp.connect(body); body.connect(drive); drive.connect(presence); presence.connect(lp); lp.connect(postHp); postHp.connect(masterGain);
+
+                const toneGain = ctx.createGain();
+                toneGain.connect(hp);
+                toneGain.gain.setValueAtTime(0.0001, now);
+                toneGain.gain.linearRampToValueAtTime(guitarVolume, now + 0.008);
+                toneGain.gain.linearRampToValueAtTime(guitarVolume * 0.55, now + 0.09);
+                toneGain.gain.setValueAtTime(guitarVolume * 0.55, naturalEnd - 0.24);
+                toneGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sawtooth';
+                osc1.frequency.setValueAtTime(freq, now);
+                gain1.gain.setValueAtTime(guitarVolume * 0.33, now);
+                osc1.connect(gain1); gain1.connect(toneGain);
+
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'square';
+                osc2.frequency.setValueAtTime(freq, now);
+                osc2.detune.setValueAtTime(4.4, now);
+                gain2.gain.setValueAtTime(guitarVolume * 0.2, now);
+                osc2.connect(gain2); gain2.connect(toneGain);
+
+                const osc3 = ctx.createOscillator();
+                const gain3 = ctx.createGain();
+                osc3.type = 'triangle';
+                osc3.frequency.setValueAtTime(freq * 2, now);
+                gain3.gain.setValueAtTime(guitarVolume * 0.082, now);
+                osc3.connect(gain3); gain3.connect(toneGain);
+
+                const vibrato = ctx.createOscillator();
+                vibrato.type = 'sine';
+                vibrato.frequency.setValueAtTime(5.6, now);
+                const vib1 = ctx.createGain();
+                const vib2 = ctx.createGain();
+                vib1.gain.setValueAtTime(0.0001, now);
+                vib1.gain.linearRampToValueAtTime(2.6, now + 0.22);
+                vib2.gain.setValueAtTime(0.0001, now);
+                vib2.gain.linearRampToValueAtTime(1.7, now + 0.22);
+                vibrato.connect(vib1); vibrato.connect(vib2);
+                vib1.connect(osc1.detune); vib2.connect(osc2.detune);
+
+                const noiseSource = ctx.createBufferSource();
+                noiseSource.buffer = ensureSaxNoiseBuffer(ctx);
+                noiseSource.loop = true;
+                const noiseHP = ctx.createBiquadFilter();
+                noiseHP.type = 'highpass';
+                noiseHP.frequency.setValueAtTime(2700, now);
+                const noiseGain = ctx.createGain();
+                noiseGain.gain.setValueAtTime(0.0001, now);
+                noiseGain.gain.linearRampToValueAtTime(guitarVolume * 0.052, now + 0.012);
+                noiseGain.gain.exponentialRampToValueAtTime(guitarVolume * 0.013, now + 0.2);
+                noiseGain.gain.setValueAtTime(guitarVolume * 0.011, naturalEnd - 0.24);
+                noiseGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+                noiseSource.connect(noiseHP); noiseHP.connect(noiseGain); noiseGain.connect(hp);
+
+                osc1.start(now); osc2.start(now); osc3.start(now); vibrato.start(now); noiseSource.start(now);
+                osc1.stop(naturalEnd + 0.05); osc2.stop(naturalEnd + 0.05); osc3.stop(naturalEnd + 0.05);
+                vibrato.stop(naturalEnd + 0.05); noiseSource.stop(naturalEnd + 0.05);
+
+                gameState.oscillators[voiceKey] = {
+                    oscillator: osc1,
+                    gainNode: toneGain,
+                    osc2: osc2,
+                    gain2: gain2,
+                    osc3: osc3,
+                    gain3: gain3,
+                    masterGain: masterGain,
+                    extraGainNodes: [vib1, vib2, noiseGain],
+                    extraOscillators: [vibrato, noiseSource]
+                };
+                return;
+            }
 
             if (instrument === 1) {
                 const brightness = getTrumpetBrightness(freq);
@@ -1872,6 +2329,21 @@
             const radius = Math.max(4.2, Math.min(7.2, (Math.min(w, h) * 0.18)));
             ctx.lineWidth = Math.max(1.1, radius * 0.15);
 
+            const icePatternLightMode = gameState.keyParticles.length > ICE_DETAIL_PARTICLE_THRESHOLD;
+            if (icePatternLightMode) {
+                ctx.beginPath();
+                ctx.moveTo(center.x - radius, center.y);
+                ctx.lineTo(center.x + radius, center.y);
+                ctx.moveTo(center.x, center.y - radius);
+                ctx.lineTo(center.x, center.y + radius);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.arc(center.x, center.y, Math.max(0.9, radius * 0.14), 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                return;
+            }
+
             for (let arm = 0; arm < 6; arm++) {
                 const a = (Math.PI / 3) * arm;
                 const cosA = Math.cos(a);
@@ -1956,7 +2428,7 @@
         let tileIdCounter = 1;
 
         class Tile {
-            constructor(column, lengthPixels = null, noteNum = null, isDrum = false, velocity = 100) {
+            constructor(column, lengthPixels = null, noteNum = null, isDrum = false, velocity = 100, isLifeNote = false) {
             this.id = tileIdCounter++;
                 this.column = column;
                 this.width = column_widths[column] - (BLACK_INDICES.includes(column) ? 2 : 4);
@@ -1979,6 +2451,7 @@
                 this.noteNum = noteNum;
                 this.isDrum = !!isDrum;
                 this.velocity = velocity;
+                this.isLifeNote = !!isLifeNote;
                 this.drumPlayedAtBar = false;
                 this.sustainVoiceKey = `hold:${this.id}`;
                 this.holdFramesRequired = lengthPixels ? Math.floor(lengthPixels / this.speed) : 0;
@@ -2107,6 +2580,22 @@
                 ctx.strokeStyle = this.missed ? '#000' : palette.stroke;
                 ctx.lineWidth = 1;
                 ctx.strokeRect(this.x, this.y, this.width, this.height);
+
+                if (this.isLifeNote && !this.missed) {
+                    const heartW = Math.max(14, Math.min(20, this.width * 0.6));
+                    const heartH = Math.max(14, Math.min(20, this.height * 0.55));
+                    const heartX = this.x + (this.width / 2);
+                    const heartY = this.y + (this.height / 2);
+                    ctx.save();
+                    ctx.fillStyle = '#ff2d55';
+                    ctx.shadowColor = 'rgba(255, 40, 90, 0.65)';
+                    ctx.shadowBlur = 8;
+                    ctx.font = `bold ${Math.max(14, Math.floor(Math.min(heartW, heartH)))}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('❤', heartX, heartY + 0.5);
+                    ctx.restore();
+                }
                 
                 // Draw label
                 const label = getColumnLabel(this.column);
@@ -2326,14 +2815,18 @@
             }
 
             if (isIceTheme) {
-                const existingIceFlakeCount = gameState.keyParticles.filter(particle => (
-                    particle.particleType === 'ice-flake'
-                )).length;
+                let existingIceFlakeCount = 0;
+                for (let i = 0; i < gameState.keyParticles.length; i++) {
+                    if (gameState.keyParticles[i].particleType === 'ice-flake') {
+                        existingIceFlakeCount++;
+                        if (existingIceFlakeCount > ICE_PARTICLE_SOFT_CAP) break;
+                    }
+                }
 
                 const startY = BAR_Y - (0.4 + Math.random() * 1.0);
                 const flakeCount = existingIceFlakeCount > ICE_PARTICLE_SOFT_CAP
-                    ? 1
-                    : Math.max(2, ICE_FLAKE_COUNT + 2);
+                    ? 0
+                    : Math.max(1, ICE_FLAKE_COUNT);
                 for (let i = 0; i < flakeCount; i++) {
                     const spawnX = keyRect.x + (Math.random() * keyRect.width);
                     const flakeLife = KEY_PARTICLE_LIFETIME + 10 + Math.floor(Math.random() * 10);
@@ -2449,6 +2942,8 @@
         }
 
         function updateKeyParticles() {
+            const isIceThemeActive = (gameState.shop.selectedTheme | 0) === 4;
+            const iceEmitInterval = 2;
             for (let column = 0; column < NUM_COLUMNS; column++) {
                 if (!gameState.pressedKeys.has(column)) {
                     gameState.keyParticleEmitTimers[column] = 0;
@@ -2458,7 +2953,7 @@
 
                 if (gameState.keyParticleEmitTimers[column] <= 0) {
                     spawnKeyParticles(column);
-                    gameState.keyParticleEmitTimers[column] = KEY_PARTICLE_EMIT_INTERVAL;
+                    gameState.keyParticleEmitTimers[column] = isIceThemeActive ? iceEmitInterval : KEY_PARTICLE_EMIT_INTERVAL;
                 } else {
                     gameState.keyParticleEmitTimers[column]--;
                 }
@@ -2685,6 +3180,10 @@
                     ctx.globalAlpha = Math.min(1, alpha * 0.92);
                     const size = particle.size || 1.8;
                     const iceHighLoad = highLoadEffects || gameState.keyParticles.length > ICE_DETAIL_PARTICLE_THRESHOLD;
+
+                    if (iceHighLoad && ((particle.age || 0) % 2 === 0)) {
+                        continue;
+                    }
 
                     if (iceHighLoad) {
                         ctx.fillStyle = particle.color || '#dff6ff';
@@ -2978,6 +3477,34 @@
                 endGame();
             }
         }
+
+        function applyLifeNotesToUploadedLevel(notes) {
+            if (!Array.isArray(notes) || notes.length === 0) return [];
+
+            let playableCount = 0;
+            return notes.map((note) => {
+                const mapped = { ...note, isLifeNote: false };
+                const isPlayableNote = !mapped.isDrum;
+                const isTap = !mapped.lengthPixels || mapped.lengthPixels <= TILE_SIZE;
+
+                if (isPlayableNote) {
+                    playableCount++;
+                    if (isTap && playableCount % 30 === 0) {
+                        mapped.isLifeNote = true;
+                    }
+                }
+
+                return mapped;
+            });
+        }
+
+        function grantLifeFromHeartNote() {
+            if (!livesEnabledForCurrentRun()) return;
+            const targetMax = Math.max(3, gameState.maxLives || 3);
+            if (gameState.lives >= targetMax) return;
+            gameState.lives = Math.min(targetMax, gameState.lives + 1);
+            renderLives();
+        }
         
         function hideElement(id) { document.getElementById(id).classList.add('hidden'); }
         function showElement(id) { document.getElementById(id).classList.remove('hidden'); }
@@ -3247,7 +3774,9 @@
                 instruments: [
                     { name: 'E-piano', icon: '🎹' },
                     { name: 'Trompet', icon: '🎺' },
-                    { name: 'Saxofoon', icon: '🎷' }
+                    { name: 'Saxofoon', icon: '🎷' },
+                    { name: 'Akoestische gitaar', icon: '🎸' },
+                    { name: 'Elektrische gitaar', icon: '🎸' }
                 ]
             };
             
@@ -3625,6 +4154,8 @@
         
         function startAfterAnalysis() {
             hideElement('midiAnalysisOverlay');
+            gameState.customUploadRun = true;
+            gameState.levelNotes = applyLifeNotesToUploadedLevel(gameState.levelNotes);
             gameState.useMidiSchedule = true;
             startLevelGame();
         }
@@ -3973,8 +4504,11 @@
             hideElement('playSelectOverlay');
             gameState.currentLevel = null;
             gameState.useMidiSchedule = false;
+            gameState.customUploadRun = false;
             gameState.tutorialMode = false;
             gameState.levelNotes = [];
+            gameState.backgroundDrumEvents = [];
+            gameState.backgroundDrumIndex = 0;
             startNewGame();
         }
         
@@ -3987,6 +4521,7 @@
             gameState.tutorialMode = true;
             gameState.tutorialStep = 0;
             gameState.currentLevel = null;
+            gameState.customUploadRun = false;
             gameState.useMidiSchedule = true;
             gameState.tutorialOverlayActive = false;
             gameState.tutorialFallingPromptDone = false;
@@ -4094,6 +4629,7 @@
         async function startLevel(levelNum) {
             hideElement('levelsOverlay');
             gameState.currentLevel = levelNum;
+            gameState.customUploadRun = false;
             gameState.tutorialMode = false;
             gameState.backgroundDrumEvents = [];
             gameState.backgroundDrumIndex = 0;
@@ -4260,6 +4796,7 @@
         function startNewGame() {
             // Start a new game without countdown (countdown only on resume)
             gameState.state = 'playing';
+            gameState.maxLives = gameState.customUploadRun ? 5 : 3;
             gameState.score = 0;
             gameState.combo = 0;
             gameState.maxCombo = 0;
@@ -4273,8 +4810,11 @@
             gameState.spawnCounter = 0;
             gameState.gameFrame = 0;
             gameState.backgroundDrumIndex = 0;
+            if (!gameState.useMidiSchedule) {
+                gameState.backgroundDrumEvents = [];
+            }
             gameState.activeHolds = {};
-            gameState.lives = gameState.maxLives;
+            gameState.lives = 3;
             gameState.cheatsUsedThisRun = !!gameState.settings.cheatsEnabled;
             gameState.tutorialOverlayActive = false;
             gameState.tutorialFallingPromptDone = false;
@@ -4615,6 +5155,9 @@
                         } else {
                             playNote(column, 0.18, tile.noteNum);
                         }
+                        if (tile.isLifeNote) {
+                            grantLifeFromHeartNote();
+                        }
                         delete gameState.activeHolds[column];
                         return;
                     }
@@ -4664,6 +5207,9 @@
                     } else {
                         playNote(column, 0.2, tile.noteNum);
                     }
+                    if (tile.isLifeNote) {
+                        grantLifeFromHeartNote();
+                    }
                 }
             } else {
                 // Wrong key - no tile in hit zone
@@ -4702,6 +5248,10 @@
                 gameState.combo++;
                 gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
                 showJudgement('Allright');
+            }
+
+            if (tile.isLifeNote) {
+                grantLifeFromHeartNote();
             }
             
             delete gameState.activeHolds[column];
@@ -4865,7 +5415,7 @@
                         // Gebruik lengthPixels van de MIDI note (berekend in parser)
                         const holdLength = note.lengthPixels || TILE_SIZE;
                         
-                        gameState.tiles.push(new Tile(note.column, holdLength, note.note, note.isDrum, note.velocity));
+                        gameState.tiles.push(new Tile(note.column, holdLength, note.note, note.isDrum, note.velocity, !!note.isLifeNote));
                         gameState.levelNoteIndex++;
                     } else {
                         break;
@@ -5048,8 +5598,11 @@
         }
         
         document.addEventListener('keydown', (e) => {
-            // Slash key toggles cheats while playing
-            if (gameState.state === 'playing' && (e.code === 'Slash' || e.key === '/' || e.keyCode === 191)) {
+            // Get column from key (try e.code first, then fallback to keyCode)
+            const column = getColumnFromKeyboardEvent(e);
+
+            // Slash key toggles cheats while playing (only when key is not mapped as a note key)
+            if (column === undefined && gameState.state === 'playing' && (e.code === 'Slash' || e.key === '/' || e.keyCode === 191)) {
                 e.preventDefault();
                 toggleCheats();
                 return;
@@ -5070,9 +5623,6 @@
                 }
             }
 
-            // Get column from key (try e.code first, then fallback to keyCode)
-            const column = getColumnFromKeyboardEvent(e);
-            
             // Prevent default for game keys
             if (column !== undefined) {
                 e.preventDefault();
