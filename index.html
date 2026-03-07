@@ -6,6 +6,10 @@
     <title>Fallin' Keys</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --tile-yellow: #ffff00;
+            --game-width: 400px;
+        }
         body {
             font-family: 'Segoe UI', Arial, sans-serif;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
@@ -16,6 +20,64 @@
             color: white;
             overflow: hidden;
         }
+        .side-wave {
+            position: fixed;
+            bottom: 0;
+            height: 50vh;
+            width: max(0px, calc((100vw - var(--game-width)) / 2));
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            padding: 0 8px;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+            opacity: 0;
+            transition: opacity 0.16s ease-out;
+        }
+        .side-wave.active {
+            opacity: 1;
+        }
+        #sideWaveLeft {
+            left: 0;
+            flex-direction: row-reverse;
+            background: linear-gradient(90deg, rgba(255, 255, 0, 0.3) 0%, rgba(255, 255, 0, 0.1) 22%, rgba(255, 255, 0, 0) 100%);
+        }
+        #sideWaveRight {
+            right: 0;
+            flex-direction: row;
+            background: linear-gradient(270deg, rgba(255, 255, 0, 0.3) 0%, rgba(255, 255, 0, 0.1) 22%, rgba(255, 255, 0, 0) 100%);
+        }
+        .side-wave-bar {
+            flex: 1 1 auto;
+            min-width: 2px;
+            max-width: 7px;
+            height: 100%;
+            border-radius: 2px 2px 0 0;
+            transform-origin: bottom center;
+            transform: scaleY(var(--base-scale, 0.02));
+            opacity: 0.68;
+            background: linear-gradient(180deg, rgba(255, 245, 120, 0.74) 0%, rgba(255, 236, 92, 0.52) 62%, rgba(255, 228, 70, 0.34) 100%);
+            will-change: transform, opacity;
+        }
+        .side-wave-bar.wave {
+            animation: sideWavePulse 380ms cubic-bezier(0.2, 0.75, 0.2, 1);
+            animation-delay: var(--delay-ms, 0ms);
+        }
+        @keyframes sideWavePulse {
+            0% {
+                transform: scaleY(var(--base-scale, 0.02));
+                opacity: 0.64;
+            }
+            42% {
+                transform: scaleY(var(--peak-scale, 1.2));
+                opacity: 0.88;
+            }
+            100% {
+                transform: scaleY(var(--base-scale, 0.02));
+                opacity: 0.68;
+            }
+        }
         #gameContainer {
             width: 400px;
             height: 600px;
@@ -24,6 +86,7 @@
             overflow: hidden;
             background-color: #000;
             box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            z-index: 1;
         }
         canvas { display: block; width: 100%; height: 100%; }
         
@@ -465,6 +528,8 @@
     </style>
 </head>
 <body>
+    <div id="sideWaveLeft" class="side-wave" aria-hidden="true"></div>
+    <div id="sideWaveRight" class="side-wave" aria-hidden="true"></div>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="400" height="600"></canvas>
         <button id="pauseBtn"></button>
@@ -639,6 +704,9 @@
         const KEY_PARTICLE_EMIT_INTERVAL = 1;
         const MAX_KEY_PARTICLES = 320;
         const GALACTIC_PARTICLE_SOFT_CAP = 150;
+        const GALACTIC_PARTICLE_HARD_CAP = 210;
+        const GALACTIC_EMIT_INTERVAL = 2;
+        const GALACTIC_DETAIL_PARTICLE_THRESHOLD = 120;
         const ICE_PARTICLE_SOFT_CAP = 70;
         const MENU_DEMO_MAX_TILES = 14;
         const MENU_DEMO_UPDATE_EVERY_N_FRAMES = 2;
@@ -795,11 +863,103 @@
         const scoreDisplayEl = document.getElementById('scoreDisplay');
         const comboDisplayEl = document.getElementById('comboDisplay');
         const practiceModeIndicatorEl = document.getElementById('practiceModeIndicator');
+        const sideWaveLeftEl = document.getElementById('sideWaveLeft');
+        const sideWaveRightEl = document.getElementById('sideWaveRight');
         let cachedLabelMode = null;
         let cachedLabelMap = KEY_LABELS;
         let lastHudScore = null;
         let lastHudCombo = null;
         let lastHudPracticeEnabled = null;
+        const sideWaveState = {
+            leftBars: [],
+            rightBars: [],
+            barCount: 0,
+            hideTimer: null
+        };
+
+        function getSideWaveBarCount() {
+            const sideWidth = Math.max(0, (window.innerWidth - SCREEN_WIDTH) / 2);
+            if (sideWidth < 24) return 0;
+            return Math.max(6, Math.min(34, Math.floor(sideWidth / 14)));
+        }
+
+        function createWaveBar() {
+            const bar = document.createElement('span');
+            bar.className = 'side-wave-bar';
+            bar.style.setProperty('--base-scale', (0.012 + Math.random() * 0.02).toFixed(3));
+            return bar;
+        }
+
+        function rebuildSideWaveBars() {
+            if (!sideWaveLeftEl || !sideWaveRightEl) return;
+
+            const count = getSideWaveBarCount();
+            if (count === sideWaveState.barCount) return;
+
+            sideWaveLeftEl.innerHTML = '';
+            sideWaveRightEl.innerHTML = '';
+            sideWaveState.leftBars = [];
+            sideWaveState.rightBars = [];
+            sideWaveState.barCount = count;
+
+            if (count <= 0) return;
+
+            for (let i = 0; i < count; i++) {
+                const leftBar = createWaveBar();
+                const rightBar = createWaveBar();
+                sideWaveLeftEl.appendChild(leftBar);
+                sideWaveRightEl.appendChild(rightBar);
+                sideWaveState.leftBars.push(leftBar);
+                sideWaveState.rightBars.push(rightBar);
+            }
+        }
+
+        function triggerSideWaveFromCenter(intensity = 1) {
+            if (gameState.state !== 'playing') return;
+            const barsCount = sideWaveState.barCount;
+            if (barsCount <= 0) return;
+
+            const clampedIntensity = Math.max(0.75, Math.min(1.4, intensity || 1));
+            const delayStep = 14;
+
+            sideWaveLeftEl.classList.add('active');
+            sideWaveRightEl.classList.add('active');
+            if (sideWaveState.hideTimer) {
+                clearTimeout(sideWaveState.hideTimer);
+            }
+
+            for (let i = 0; i < barsCount; i++) {
+                const normalizedDistance = i / Math.max(1, barsCount - 1);
+                const waveFalloff = 1 - (normalizedDistance * 0.45);
+                const peak = (0.72 + ((1 - normalizedDistance) * 0.46)) * waveFalloff * clampedIntensity;
+
+                const leftBar = sideWaveState.leftBars[i];
+                const rightBar = sideWaveState.rightBars[i];
+                if (!leftBar || !rightBar) continue;
+
+                const delayMs = `${Math.round(i * delayStep)}ms`;
+                const peakScale = Math.max(0.9, peak).toFixed(3);
+
+                leftBar.classList.remove('wave');
+                rightBar.classList.remove('wave');
+                leftBar.style.setProperty('--delay-ms', delayMs);
+                rightBar.style.setProperty('--delay-ms', delayMs);
+                leftBar.style.setProperty('--peak-scale', peakScale);
+                rightBar.style.setProperty('--peak-scale', peakScale);
+                void leftBar.offsetWidth;
+                void rightBar.offsetWidth;
+                leftBar.classList.add('wave');
+                rightBar.classList.add('wave');
+            }
+
+            sideWaveState.hideTimer = setTimeout(() => {
+                sideWaveLeftEl.classList.remove('active');
+                sideWaveRightEl.classList.remove('active');
+                sideWaveState.hideTimer = null;
+            }, Math.round((barsCount * delayStep) + 420));
+        }
+
+        window.addEventListener('resize', rebuildSideWaveBars);
 
         // ============================================
         // ============================================
@@ -2382,12 +2542,34 @@
             const y = tile.y;
             const w = tile.width;
             const h = tile.height;
+            const galacticLightMode = gameState.keyParticles.length > GALACTIC_DETAIL_PARTICLE_THRESHOLD;
 
             ctx.save();
             ctx.beginPath();
             ctx.rect(x, y, w, h);
             ctx.clip();
             ctx.globalAlpha *= Math.max(0.25, Math.min(1, alpha));
+
+            if (galacticLightMode) {
+                const compactGradient = ctx.createLinearGradient(x, y, x + w, y + h);
+                compactGradient.addColorStop(0, 'rgba(176, 122, 255, 0.32)');
+                compactGradient.addColorStop(1, 'rgba(78, 30, 147, 0.08)');
+                ctx.fillStyle = compactGradient;
+                ctx.fillRect(x, y, w, h);
+
+                ctx.fillStyle = '#f1e4ff';
+                const starCount = 2;
+                for (let i = 0; i < starCount; i++) {
+                    const sx = x + ((i + 1) * w / (starCount + 1));
+                    const sy = y + (h * (0.3 + ((i % 2) * 0.34)));
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 0.85, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+                return;
+            }
 
             const nebula = ctx.createRadialGradient(
                 x + (w * 0.3), y + (h * 0.35), Math.max(2, w * 0.05),
@@ -2620,6 +2802,11 @@
             canBeHit() {
                 return !this.hit && !this.missed && this.isHeadOnBar();
             }
+
+            isRecoverableMiss() {
+                // A missed note can still be corrected while it is visible in the piano area.
+                return this.missed && !this.hit && !this.holding && this.y < SCREEN_HEIGHT && (this.y + this.height) >= BAR_Y;
+            }
         }
         
         // ============================================
@@ -2851,16 +3038,25 @@
             }
 
             if (isGalacticTheme) {
-                const existingGalacticCount = gameState.keyParticles.filter(p => (
-                    p.particleType === 'galactic-star' || p.particleType === 'galactic-galaxy'
-                )).length;
+                if (gameState.keyParticles.length >= GALACTIC_PARTICLE_HARD_CAP) return;
 
-                const starCount = existingGalacticCount > GALACTIC_PARTICLE_SOFT_CAP ? 1 : 2;
+                let existingGalacticCount = 0;
+                let hasGalaxyInColumn = false;
+                for (const particle of gameState.keyParticles) {
+                    if (particle.particleType === 'galactic-star' || particle.particleType === 'galactic-galaxy') {
+                        existingGalacticCount++;
+                        if (particle.particleType === 'galactic-galaxy' && particle.column === column && particle.life > 0) {
+                            hasGalaxyInColumn = true;
+                        }
+                    }
+                }
+
+                const starCount = existingGalacticCount > GALACTIC_PARTICLE_SOFT_CAP ? 0 : 1;
                 const startY = BAR_Y - (0.45 + Math.random() * 1.0);
 
                 for (let i = 0; i < starCount; i++) {
                     const spawnX = keyRect.x + (Math.random() * keyRect.width);
-                    const life = 14 + Math.floor(Math.random() * 8);
+                    const life = 12 + Math.floor(Math.random() * 7);
                     const starColors = [
                         { color: '#7dc8ff', glowColor: '#b9e4ff' },
                         { color: '#ff8fd8', glowColor: '#ffd0f0' }
@@ -2870,8 +3066,8 @@
                         x: spawnX,
                         y: startY + (Math.random() * 1.2),
                         vx: (Math.random() - 0.5) * 0.22,
-                        vy: -(0.62 + Math.random() * 0.48),
-                        gravity: 0.004,
+                        vy: -(0.95 + Math.random() * 0.65),
+                        gravity: 0.0036,
                         size: 1.2 + Math.random() * 1.4,
                         phase: Math.random() * Math.PI * 2,
                         life,
@@ -2882,13 +3078,7 @@
                     });
                 }
 
-                const hasGalaxyInColumn = gameState.keyParticles.some(particle => (
-                    particle.particleType === 'galactic-galaxy' &&
-                    particle.column === column &&
-                    particle.life > 0
-                ));
-
-                if (!hasGalaxyInColumn && existingGalacticCount < (GALACTIC_PARTICLE_SOFT_CAP + 30) && Math.random() < 0.42) {
+                if (!hasGalaxyInColumn && existingGalacticCount < (GALACTIC_PARTICLE_SOFT_CAP + 14) && Math.random() < 0.2) {
                     const spawnX = keyRect.x + (keyRect.width * (0.25 + Math.random() * 0.5));
                     const life = 18 + Math.floor(Math.random() * 10);
                     gameState.keyParticles.push({
@@ -2943,6 +3133,7 @@
 
         function updateKeyParticles() {
             const isIceThemeActive = (gameState.shop.selectedTheme | 0) === 4;
+            const isGalacticThemeActive = (gameState.shop.selectedTheme | 0) === 5;
             const iceEmitInterval = 2;
             for (let column = 0; column < NUM_COLUMNS; column++) {
                 if (!gameState.pressedKeys.has(column)) {
@@ -2953,7 +3144,11 @@
 
                 if (gameState.keyParticleEmitTimers[column] <= 0) {
                     spawnKeyParticles(column);
-                    gameState.keyParticleEmitTimers[column] = isIceThemeActive ? iceEmitInterval : KEY_PARTICLE_EMIT_INTERVAL;
+                    if (isGalacticThemeActive) {
+                        gameState.keyParticleEmitTimers[column] = GALACTIC_EMIT_INTERVAL;
+                    } else {
+                        gameState.keyParticleEmitTimers[column] = isIceThemeActive ? iceEmitInterval : KEY_PARTICLE_EMIT_INTERVAL;
+                    }
                 } else {
                     gameState.keyParticleEmitTimers[column]--;
                 }
@@ -3223,6 +3418,9 @@
                 }
 
                 if (particle.particleType === 'galactic-star') {
+                    if (highLoadEffects && ((particle.age || 0) % 2 === 0)) {
+                        continue;
+                    }
                     const size = particle.size || 1.6;
                     const twinkle = 0.62 + (Math.sin((gameState.gameFrame * 0.5) + (particle.phase || 0)) * 0.38);
                     const starColor = particle.color || '#ead6ff';
@@ -3255,6 +3453,9 @@
                 }
 
                 if (particle.particleType === 'galactic-galaxy') {
+                    if (highLoadEffects && ((particle.age || 0) % 2 === 0)) {
+                        continue;
+                    }
                     const size = particle.size || 3.2;
                     const pulse = 0.88 + (Math.sin((gameState.gameFrame * 0.22) + (particle.phase || 0)) * 0.12);
 
@@ -3393,6 +3594,13 @@
             el.className = 'show ' + type.toLowerCase();
             gameState.lastJudgement = type;
             gameState.judgementTimer = 45;
+
+            const intensityByJudgement = {
+                Perfect: 1.18,
+                Great: 1.02,
+                Allright: 0.9
+            };
+            triggerSideWaveFromCenter(intensityByJudgement[type] || 1);
             
             // Show combo multiplier when combo >= 5
             const comboEl = document.getElementById('comboMultiplier');
@@ -3485,11 +3693,10 @@
             return notes.map((note) => {
                 const mapped = { ...note, isLifeNote: false };
                 const isPlayableNote = !mapped.isDrum;
-                const isTap = !mapped.lengthPixels || mapped.lengthPixels <= TILE_SIZE;
 
                 if (isPlayableNote) {
                     playableCount++;
-                    if (isTap && playableCount % 30 === 0) {
+                    if (playableCount % 30 === 0) {
                         mapped.isLifeNote = true;
                     }
                 }
@@ -4155,7 +4362,6 @@
         function startAfterAnalysis() {
             hideElement('midiAnalysisOverlay');
             gameState.customUploadRun = true;
-            gameState.levelNotes = applyLifeNotesToUploadedLevel(gameState.levelNotes);
             gameState.useMidiSchedule = true;
             startLevelGame();
         }
@@ -4789,6 +4995,9 @@
         }
         
         function startLevelGame() {
+            if (gameState.useMidiSchedule && Array.isArray(gameState.levelNotes) && gameState.levelNotes.length > 0) {
+                gameState.levelNotes = applyLifeNotesToUploadedLevel(gameState.levelNotes);
+            }
             gameState.levelNoteIndex = 0;
             startNewGame();
         }
@@ -5122,8 +5331,12 @@
             let maxY = -Infinity;
             const cheatsEnabled = gameState.settings.cheatsEnabled;
             for (const candidate of gameState.tiles) {
-                if (candidate.column !== column || candidate.hit || candidate.missed || candidate.holding) continue;
-                if (!cheatsEnabled && !candidate.canBeHit()) continue;
+                if (candidate.column !== column || candidate.hit || candidate.holding) continue;
+
+                const recoverableMiss = candidate.isRecoverableMiss();
+                if (candidate.missed && !recoverableMiss) continue;
+                if (!cheatsEnabled && !candidate.canBeHit() && !recoverableMiss) continue;
+
                 if (candidate.y > maxY) {
                     tile = candidate;
                     maxY = candidate.y;
@@ -5131,6 +5344,10 @@
             }
 
             if (tile) {
+                if (tile.missed && tile.isRecoverableMiss()) {
+                    tile.missed = false;
+                }
+
                 if (cheatsEnabled) {
                     stopSustainSound(column, 20);
                     stopAllVoicesForColumn(column, 20);
@@ -5498,6 +5715,9 @@
                                 playNote(tile.column, durationSeconds, tile.noteNum);
                             }
                             gameState.score += 1;
+                            if (tile.isLifeNote) {
+                                grantLifeFromHeartNote();
+                            }
                         }
                     }
                 }
@@ -5523,6 +5743,9 @@
                     if (tile.holdFramesElapsed >= tile.holdFramesRequired * 0.9) {
                         tile.hit = true;
                         gameState.score += 3; // Perfect score
+                        if (tile.isLifeNote) {
+                            grantLifeFromHeartNote();
+                        }
                         stopSustainSound(tile.sustainVoiceKey || getSustainVoiceKey(tile.column, tile.noteNum), 20);
                         delete gameState.activeHolds[tile.column];
                     }
@@ -5535,6 +5758,9 @@
                     if (tile.y >= BAR_Y + BAR_HEIGHT) {
                         tile.hit = true;
                         gameState.score += 1;
+                        if (tile.isLifeNote) {
+                            grantLifeFromHeartNote();
+                        }
                         stopSustainSound(tile.sustainVoiceKey || getSustainVoiceKey(tile.column, tile.noteNum), 20);
                         delete gameState.activeHolds[tile.column];
                     }
@@ -5777,6 +6003,7 @@
         // Initialize
         updateInfoText();
         renderLives();
+        rebuildSideWaveBars();
         preloadLevelPreviewImages();
         setupLevelHoverBackgrounds();
         drawGame();
