@@ -38,6 +38,10 @@
             overflow: hidden;
             opacity: 1;
             transition: opacity 0.16s ease-out;
+            contain: layout paint style;
+        }
+        .side-wave.playing {
+            height: 34vh;
         }
         .side-wave.active {
             opacity: 1;
@@ -50,6 +54,7 @@
             gap: 4px;
             opacity: 0;
             transition: opacity 0.2s ease-in;
+            contain: layout paint style;
         }
         .side-wave-layer.idle {
             opacity: 1;
@@ -89,7 +94,6 @@
             transform: scaleY(var(--base-scale, 0.02));
             opacity: 0.68;
             background: linear-gradient(180deg, var(--side-wave-bar-top) 0%, var(--side-wave-bar-mid) 62%, var(--side-wave-bar-bottom) 100%);
-            will-change: transform, opacity;
         }
         .side-wave.low-life .side-wave-bar {
             background: linear-gradient(180deg, rgba(255, 120, 120, 0.86) 0%, rgba(255, 80, 80, 0.62) 62%, rgba(230, 45, 45, 0.4) 100%);
@@ -100,6 +104,7 @@
         .side-wave-bar.wave {
             animation: sideWavePulse 380ms cubic-bezier(0.2, 0.75, 0.2, 1);
             animation-delay: var(--delay-ms, 0ms);
+            will-change: transform, opacity;
         }
         @keyframes sideWavePulse {
             0% {
@@ -107,7 +112,7 @@
                 opacity: 0.64;
             }
             42% {
-                transform: scaleY(var(--peak-scale, 1.2));
+                transform: scaleY(var(--peak-scale, 0.9));
                 opacity: 0.88;
             }
             100% {
@@ -918,13 +923,28 @@
             barCount: 0,
             nextLayerIndex: 0,
             activeBursts: 0,
-            idleAnimationFrame: null
+            idleAnimationFrame: null,
+            lastTriggerTime: 0
+        };
+
+        const INSTRUMENT_PREVIEW_SFX_MAP = {
+            0: ['SFX/e-piano click fx.mid'],
+            1: ['SFX/trompet click fxz.mid', 'SFX/trompet click fx.mid'],
+            2: ['SFX/saxofoon click fx.mid'],
+            3: ['SFX/ak. guitar fx.mid'],
+            4: ['SFX/el. guitar fx.mid']
+        };
+
+        const instrumentPreviewState = {
+            cache: {},
+            timers: [],
+            token: 0
         };
 
         function getSideWaveBarCount() {
             const sideWidth = Math.max(0, (window.innerWidth - SCREEN_WIDTH) / 2);
             if (sideWidth < 24) return 0;
-            return Math.max(6, Math.min(34, Math.floor(sideWidth / 14)));
+            return Math.max(6, Math.min(24, Math.floor(sideWidth / 18)));
         }
 
         function createWaveBar() {
@@ -950,6 +970,7 @@
             sideWaveState.barCount = count;
             sideWaveState.nextLayerIndex = 0;
             sideWaveState.activeBursts = 0;
+            sideWaveState.lastTriggerTime = 0;
             sideWaveLeftEl.classList.remove('active');
             sideWaveRightEl.classList.remove('active');
 
@@ -975,7 +996,7 @@
                 sideWaveState.idleRightBars.push(rightBar);
             }
 
-            const layerCount = 3;
+            const layerCount = 2;
             for (let layerIndex = 0; layerIndex < layerCount; layerIndex++) {
                 const leftLayer = document.createElement('div');
                 const rightLayer = document.createElement('div');
@@ -1127,12 +1148,18 @@
             sideWaveState.idleAnimationFrame = requestAnimationFrame(updateSideWaveIdleAnimation);
         }
 
-        function triggerSideWaveFromCenter(intensity = 1) {
+        function triggerSideWaveFromCenter(intensity = 1, pitchNorm = 0.5) {
             if (gameState.state !== 'playing') return;
             const barsCount = sideWaveState.barCount;
             if (barsCount <= 0 || sideWaveState.layers.length === 0) return;
 
-            const clampedIntensity = Math.max(0.75, Math.min(1.4, intensity || 1));
+            const now = performance.now();
+            if (now - sideWaveState.lastTriggerTime < 32) return;
+            sideWaveState.lastTriggerTime = now;
+
+            const clampedIntensity = Math.max(0.7, Math.min(1.05, intensity || 1));
+            const clampedPitch = Math.max(0, Math.min(1, Number.isFinite(pitchNorm) ? pitchNorm : 0.5));
+            const targetIndex = Math.round((1 - clampedPitch) * Math.max(0, barsCount - 1));
             const delayStep = 14;
             const layer = sideWaveState.layers[sideWaveState.nextLayerIndex];
             sideWaveState.nextLayerIndex = (sideWaveState.nextLayerIndex + 1) % sideWaveState.layers.length;
@@ -1151,16 +1178,17 @@
             }
 
             for (let i = 0; i < barsCount; i++) {
-                const normalizedDistance = i / Math.max(1, barsCount - 1);
-                const waveFalloff = 1 - (normalizedDistance * 0.45);
-                const peak = (0.72 + ((1 - normalizedDistance) * 0.46)) * waveFalloff * clampedIntensity;
+                const distanceToPitch = Math.abs(i - targetIndex) / Math.max(1, barsCount - 1);
+                const focus = 1 - Math.pow(distanceToPitch, 1.35);
+                const bed = 0.34;
+                const peak = (bed + (0.42 * focus)) * clampedIntensity;
 
                 const leftBar = layer.leftBars[i];
                 const rightBar = layer.rightBars[i];
                 if (!leftBar || !rightBar) continue;
 
                 const delayMs = `${Math.round(i * delayStep)}ms`;
-                const peakScale = Math.max(0.9, peak).toFixed(3);
+                const peakScale = Math.max(0.42, Math.min(0.88, peak)).toFixed(3);
 
                 leftBar.classList.remove('wave');
                 rightBar.classList.remove('wave');
@@ -1168,11 +1196,17 @@
                 rightBar.style.setProperty('--delay-ms', delayMs);
                 leftBar.style.setProperty('--peak-scale', peakScale);
                 rightBar.style.setProperty('--peak-scale', peakScale);
-                void leftBar.offsetWidth;
-                void rightBar.offsetWidth;
-                leftBar.classList.add('wave');
-                rightBar.classList.add('wave');
             }
+
+            requestAnimationFrame(() => {
+                for (let i = 0; i < barsCount; i++) {
+                    const leftBar = layer.leftBars[i];
+                    const rightBar = layer.rightBars[i];
+                    if (!leftBar || !rightBar) continue;
+                    leftBar.classList.add('wave');
+                    rightBar.classList.add('wave');
+                }
+            });
 
             layer.hideTimer = setTimeout(() => {
                 layer.leftLayer.classList.remove('active');
@@ -1184,6 +1218,26 @@
                     sideWaveRightEl.classList.remove('active');
                 }
             }, Math.round((barsCount * delayStep) + 420));
+        }
+
+        function updateSideWaveGameplayState() {
+            const isPlaying = gameState.state === 'playing';
+            if (sideWaveLeftEl) sideWaveLeftEl.classList.toggle('playing', isPlaying);
+            if (sideWaveRightEl) sideWaveRightEl.classList.toggle('playing', isPlaying);
+
+            if (isPlaying) {
+                if (sideWaveState.idleAnimationFrame !== null) {
+                    cancelAnimationFrame(sideWaveState.idleAnimationFrame);
+                    sideWaveState.idleAnimationFrame = null;
+                }
+                if (sideWaveState.idleLeftLayer && sideWaveState.idleRightLayer) {
+                    sideWaveState.idleLeftLayer.style.opacity = '0';
+                    sideWaveState.idleRightLayer.style.opacity = '0';
+                }
+                return;
+            }
+
+            ensureSideWaveIdleAnimation();
         }
 
         window.addEventListener('resize', rebuildSideWaveBars);
@@ -4055,6 +4109,7 @@
         // ============================================
         function showMenu() {
             gameState.state = 'menu';
+            updateSideWaveGameplayState();
             resetMenuInteractionState();
             gameState.lastJudgement = '';
             gameState.judgementTimer = 0;
@@ -4225,6 +4280,133 @@
                 levelPreviewPreloadImages.push(image);
             }
         }
+
+        function stopInstrumentPreviewPlayback() {
+            instrumentPreviewState.token++;
+            for (const timerId of instrumentPreviewState.timers) {
+                clearTimeout(timerId);
+            }
+            instrumentPreviewState.timers = [];
+        }
+
+        function getInstrumentPreviewFallback(index) {
+            const fallbackByInstrument = {
+                0: [60, 64, 67, 72],
+                1: [62, 66, 69, 74],
+                2: [57, 60, 64, 67],
+                3: [52, 55, 59, 64],
+                4: [47, 50, 54, 59]
+            };
+
+            const notes = fallbackByInstrument[index] || fallbackByInstrument[0];
+            return notes.map((note, i) => ({
+                delayMs: i * 165,
+                note,
+                durationSec: 0.2
+            }));
+        }
+
+        function getInstrumentPreviewTransposeSemitones(index) {
+            // Lower guitar previews by two octaves.
+            if (index === 3 || index === 4) return -24;
+            return 0;
+        }
+
+        async function loadInstrumentPreviewNotes(index) {
+            if (instrumentPreviewState.cache[index]) return instrumentPreviewState.cache[index];
+
+            const mappedPaths = INSTRUMENT_PREVIEW_SFX_MAP[index];
+            if (!Array.isArray(mappedPaths) || mappedPaths.length === 0) {
+                const fallback = getInstrumentPreviewFallback(index);
+                instrumentPreviewState.cache[index] = fallback;
+                return fallback;
+            }
+
+            const candidatePaths = [];
+            for (const basePath of mappedPaths) {
+                candidatePaths.push(basePath, `./${basePath}`, `../${basePath}`, encodeURI(basePath), encodeURI(`./${basePath}`), encodeURI(`../${basePath}`));
+            }
+
+            try {
+                const midiBytes = await loadMidiFromCandidates([...new Set(candidatePaths)]);
+                const parsed = parseMidiFile(midiBytes);
+                const frameMs = 1000 / FPS;
+                const melodicNotes = (parsed.notes || [])
+                    .filter(n => !n.isDrum && Number.isFinite(n.note))
+                    .slice(0, 10);
+
+                if (melodicNotes.length === 0) {
+                    const fallback = getInstrumentPreviewFallback(index);
+                    instrumentPreviewState.cache[index] = fallback;
+                    return fallback;
+                }
+
+                const firstFrame = melodicNotes[0].frame || 0;
+                const preview = melodicNotes.map(n => {
+                    const durationSec = Math.max(0.11, Math.min(0.42, (Number(n.durationMs) || 180) / 1000));
+                    return {
+                        delayMs: Math.max(0, Math.round(((n.frame || 0) - firstFrame) * frameMs)),
+                        note: n.note,
+                        durationSec
+                    };
+                }).filter(n => n.delayMs <= 1400);
+
+                const resolved = preview.length > 0 ? preview : getInstrumentPreviewFallback(index);
+                instrumentPreviewState.cache[index] = resolved;
+                return resolved;
+            } catch (err) {
+                console.warn(`Instrument preview SFX kon niet laden voor instrument ${index}:`, err);
+                const fallback = getInstrumentPreviewFallback(index);
+                instrumentPreviewState.cache[index] = fallback;
+                return fallback;
+            }
+        }
+
+        async function playInstrumentPreview(index) {
+            if (!gameState.settings.soundEnabled) return;
+
+            stopInstrumentPreviewPlayback();
+            initAudio();
+            if (gameState.audioContext && gameState.audioContext.state === 'suspended') {
+                try {
+                    await gameState.audioContext.resume();
+                } catch (_) {
+                    // Keep going; fallback to scheduled playback attempts.
+                }
+            }
+
+            // Always play an immediate click-preview tone on user tap so feedback is instant.
+            {
+                const immediateFallback = getInstrumentPreviewFallback(index);
+                const first = immediateFallback[0] || { note: 60, durationSec: 0.18 };
+                const previewTranspose = getInstrumentPreviewTransposeSemitones(index);
+                const rawNote = Number.isFinite(first.note) ? first.note : 60;
+                const midiNote = Math.max(24, Math.min(108, rawNote + previewTranspose));
+                const column = midiNote % 12;
+                const durationSec = Math.max(0.1, Math.min(0.32, Number(first.durationSec) || 0.18));
+                playNote(column, durationSec, midiNote);
+            }
+
+            const sequence = await loadInstrumentPreviewNotes(index);
+            const token = instrumentPreviewState.token;
+            const previewTranspose = getInstrumentPreviewTransposeSemitones(index);
+
+            for (const noteEvent of sequence) {
+                const timerId = setTimeout(() => {
+                    if (token !== instrumentPreviewState.token) return;
+                    const rawNote = Number.isFinite(noteEvent.note) ? noteEvent.note : 60;
+                    const midiNote = Math.max(24, Math.min(108, rawNote + previewTranspose));
+                    const column = midiNote % 12;
+                    const durationSec = Math.max(0.08, Math.min(0.48, Number(noteEvent.durationSec) || 0.2));
+                    try {
+                        playNote(column, durationSec, midiNote);
+                    } catch (err) {
+                        console.warn('Instrument preview note kon niet afgespeeld worden:', err);
+                    }
+                }, Math.max(0, noteEvent.delayMs | 0));
+                instrumentPreviewState.timers.push(timerId);
+            }
+        }
         
         // ============================================
         // Shop System
@@ -4314,6 +4496,10 @@
 
             if (tab === 'themes') {
                 updateSideWaveThemeColors();
+            }
+
+            if (tab === 'instruments') {
+                playInstrumentPreview(index);
             }
             
             switchShopTab(tab);
@@ -5295,6 +5481,7 @@
         function startNewGame() {
             // Start a new game without countdown (countdown only on resume)
             gameState.state = 'playing';
+            updateSideWaveGameplayState();
             gameState.maxLives = gameState.customUploadRun ? 5 : 3;
             gameState.score = 0;
             gameState.combo = 0;
@@ -5381,6 +5568,7 @@
         
         function startGameplay() {
             gameState.state = 'playing';
+            updateSideWaveGameplayState();
             document.getElementById('pauseBtn').style.display = 'block';
             gameState.gameLoopToken++;
             gameLoop(gameState.gameLoopToken);
@@ -5389,6 +5577,7 @@
         function pauseGame() {
             if (gameState.state !== 'playing') return;
             gameState.state = 'paused';
+            updateSideWaveGameplayState();
             stopAllSounds();
             showElement('pauseOverlay');
         }
@@ -5404,6 +5593,7 @@
         function updateResumeCountdown() {
             runCountdown(() => {
                 gameState.state = 'playing';
+                updateSideWaveGameplayState();
                 gameState.gameLoopToken++;
                 gameLoop(gameState.gameLoopToken);
             });
@@ -5556,7 +5746,9 @@
 
             // Wave responds to user clicks/presses instead of judgement timing.
             if (!isMidiInput) {
-                triggerSideWaveFromCenter(1.0);
+                const freq = BASE_FREQUENCIES[column] || 440;
+                const pitchNorm = Math.max(0, Math.min(1, (Math.log2(Math.max(40, freq) / 40)) / Math.log2(1760 / 40)));
+                triggerSideWaveFromCenter(1.0, pitchNorm);
             }
 
             gameState.pressedColumnCounts[column] = (gameState.pressedColumnCounts[column] || 0) + 1;
@@ -6299,6 +6491,7 @@
         updateInfoText();
         renderLives();
         rebuildSideWaveBars();
+        updateSideWaveGameplayState();
         updateSideWaveThemeColors();
         preloadLevelPreviewImages();
         setupLevelHoverBackgrounds();
