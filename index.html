@@ -21,6 +21,10 @@
             overflow: hidden;
         }
         .side-wave {
+            --side-wave-panel-rgb: 255, 228, 70;
+            --side-wave-bar-top: rgba(255, 245, 120, 0.74);
+            --side-wave-bar-mid: rgba(255, 236, 92, 0.52);
+            --side-wave-bar-bottom: rgba(255, 228, 70, 0.34);
             position: fixed;
             bottom: 0;
             height: 50vh;
@@ -63,18 +67,18 @@
         #sideWaveLeft {
             left: 0;
             flex-direction: row-reverse;
-            background: linear-gradient(90deg, rgba(42, 64, 104, 0.2) 0%, rgba(42, 64, 104, 0.08) 22%, rgba(42, 64, 104, 0) 100%);
+            background: transparent;
         }
         #sideWaveRight {
             right: 0;
             flex-direction: row;
-            background: linear-gradient(270deg, rgba(42, 64, 104, 0.2) 0%, rgba(42, 64, 104, 0.08) 22%, rgba(42, 64, 104, 0) 100%);
+            background: transparent;
         }
         #sideWaveLeft.low-life {
-            background: linear-gradient(90deg, rgba(160, 32, 32, 0.24) 0%, rgba(160, 32, 32, 0.1) 22%, rgba(160, 32, 32, 0) 100%);
+            background: transparent;
         }
         #sideWaveRight.low-life {
-            background: linear-gradient(270deg, rgba(160, 32, 32, 0.24) 0%, rgba(160, 32, 32, 0.1) 22%, rgba(160, 32, 32, 0) 100%);
+            background: transparent;
         }
         .side-wave-bar {
             flex: 1 1 auto;
@@ -84,7 +88,7 @@
             transform-origin: bottom center;
             transform: scaleY(var(--base-scale, 0.02));
             opacity: 0.68;
-            background: linear-gradient(180deg, rgba(255, 245, 120, 0.74) 0%, rgba(255, 236, 92, 0.52) 62%, rgba(255, 228, 70, 0.34) 100%);
+            background: linear-gradient(180deg, var(--side-wave-bar-top) 0%, var(--side-wave-bar-mid) 62%, var(--side-wave-bar-bottom) 100%);
             will-change: transform, opacity;
         }
         .side-wave.low-life .side-wave-bar {
@@ -739,6 +743,7 @@
         const GALACTIC_PARTICLE_SOFT_CAP = 150;
         const GALACTIC_PARTICLE_HARD_CAP = 210;
         const GALACTIC_EMIT_INTERVAL = 2;
+        const ELECTRIC_EMIT_INTERVAL = 12; // ~5 emits/sec at 60 FPS
         const GALACTIC_DETAIL_PARTICLE_THRESHOLD = 120;
         const ICE_PARTICLE_SOFT_CAP = 70;
         const MENU_DEMO_MAX_TILES = 14;
@@ -884,6 +889,7 @@
             audioMasterGain: null,
             audioCompressor: null,
             audioMelodicGain: null,
+            audioElectricGain: null,
             oscillators: {},
             noteOnTimestamps: {},
             lastGlobalNoteOnMs: 0,
@@ -1016,6 +1022,66 @@
             return 88;
         }
 
+        function getThemeWavePalette(themeIndex) {
+            switch (themeIndex | 0) {
+                case 1: // Water
+                    return {
+                        panelRgb: '74, 171, 255',
+                        barTop: 'rgba(186, 228, 255, 0.78)',
+                        barMid: 'rgba(106, 186, 255, 0.56)',
+                        barBottom: 'rgba(54, 145, 238, 0.38)'
+                    };
+                case 2: // Vulcan
+                    return {
+                        panelRgb: '255, 126, 46',
+                        barTop: 'rgba(255, 205, 138, 0.8)',
+                        barMid: 'rgba(255, 147, 67, 0.58)',
+                        barBottom: 'rgba(228, 91, 24, 0.4)'
+                    };
+                case 3: // Electric
+                    return {
+                        panelRgb: '255, 220, 60',
+                        barTop: 'rgba(255, 242, 118, 0.84)',
+                        barMid: 'rgba(214, 183, 58, 0.56)',
+                        barBottom: 'rgba(0, 0, 0, 0.5)'
+                    };
+                case 4: // Ice
+                    return {
+                        panelRgb: '142, 214, 255',
+                        barTop: 'rgba(245, 253, 255, 0.9)',
+                        barMid: 'rgba(188, 233, 255, 0.62)',
+                        barBottom: 'rgba(129, 206, 255, 0.44)'
+                    };
+                case 5: // Galactic
+                    return {
+                        panelRgb: '174, 114, 255',
+                        barTop: 'rgba(176, 115, 255, 0.82)',
+                        barMid: 'rgba(208, 118, 237, 0.6)',
+                        barBottom: 'rgba(255, 127, 211, 0.46)'
+                    };
+                default: // Default
+                    return {
+                        panelRgb: '255, 228, 70',
+                        barTop: 'rgba(255, 245, 120, 0.74)',
+                        barMid: 'rgba(255, 236, 92, 0.52)',
+                        barBottom: 'rgba(255, 228, 70, 0.34)'
+                    };
+            }
+        }
+
+        function updateSideWaveThemeColors() {
+            const palette = getThemeWavePalette(gameState.shop.selectedTheme);
+            if (!sideWaveLeftEl || !sideWaveRightEl) return;
+            sideWaveLeftEl.style.setProperty('--side-wave-panel-rgb', palette.panelRgb);
+            sideWaveRightEl.style.setProperty('--side-wave-panel-rgb', palette.panelRgb);
+            sideWaveLeftEl.style.setProperty('--side-wave-bar-top', palette.barTop);
+            sideWaveLeftEl.style.setProperty('--side-wave-bar-mid', palette.barMid);
+            sideWaveLeftEl.style.setProperty('--side-wave-bar-bottom', palette.barBottom);
+            sideWaveRightEl.style.setProperty('--side-wave-bar-top', palette.barTop);
+            sideWaveRightEl.style.setProperty('--side-wave-bar-mid', palette.barMid);
+            sideWaveRightEl.style.setProperty('--side-wave-bar-bottom', palette.barBottom);
+        }
+
         function isGameplayActiveForIdleWave() {
             return gameState.state === 'playing' || !!gameState.tutorialMode;
         }
@@ -1131,7 +1197,7 @@
                 gameState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
-            if (!gameState.audioCompressor || !gameState.audioMasterGain || !gameState.audioMelodicGain) {
+            if (!gameState.audioCompressor || !gameState.audioMasterGain || !gameState.audioMelodicGain || !gameState.audioElectricGain) {
                 const ctx = gameState.audioContext;
                 const compressor = ctx.createDynamicsCompressor();
                 compressor.threshold.setValueAtTime(-20, ctx.currentTime);
@@ -1144,6 +1210,10 @@
                 melodic.gain.setValueAtTime(1.0, ctx.currentTime);
                 melodic.connect(compressor);
 
+                const electric = ctx.createGain();
+                electric.gain.setValueAtTime(1.0, ctx.currentTime);
+                electric.connect(melodic);
+
                 const master = ctx.createGain();
                 master.gain.setValueAtTime(0.72, ctx.currentTime);
 
@@ -1153,6 +1223,7 @@
                 gameState.audioCompressor = compressor;
                 gameState.audioMasterGain = master;
                 gameState.audioMelodicGain = melodic;
+                gameState.audioElectricGain = electric;
             }
 
             syncMasterVolume();
@@ -1160,6 +1231,10 @@
 
         function getAudioOutputNode(ctx) {
             return gameState.audioMelodicGain || gameState.audioCompressor || ctx.destination;
+        }
+
+        function getElectricAudioOutputNode(ctx) {
+            return gameState.audioElectricGain || getAudioOutputNode(ctx);
         }
 
         function getDrumOutputNode(ctx) {
@@ -1175,6 +1250,15 @@
             gainParam.setValueAtTime(Math.max(gainParam.value || 1, 0.0001), now);
             gainParam.linearRampToValueAtTime(duckTo, now + 0.008);
             gainParam.exponentialRampToValueAtTime(1.0, now + 0.28);
+
+            // Extra ducking for electric guitar so kick/transients cut through clearly.
+            if (gameState.audioElectricGain) {
+                const electricGain = gameState.audioElectricGain.gain;
+                electricGain.cancelScheduledValues(now);
+                electricGain.setValueAtTime(Math.max(electricGain.value || 1, 0.0001), now);
+                electricGain.linearRampToValueAtTime(0.2, now + 0.006);
+                electricGain.exponentialRampToValueAtTime(1.0, now + 0.24);
+            }
         }
 
         function syncMasterVolume() {
@@ -1924,7 +2008,7 @@
             const endTime = releaseStart + releaseTime;
 
             const preGain = ctx.createGain();
-            preGain.connect(getAudioOutputNode(ctx));
+            preGain.connect(getElectricAudioOutputNode(ctx));
 
             const hp = ctx.createBiquadFilter();
             hp.type = 'highpass';
@@ -2049,7 +2133,7 @@
                 const naturalEnd = now + maxHold;
 
                 const masterGain = ctx.createGain();
-                masterGain.connect(getAudioOutputNode(ctx));
+                masterGain.connect(getElectricAudioOutputNode(ctx));
                 const hp = ctx.createBiquadFilter();
                 hp.type = 'highpass';
                 hp.frequency.setValueAtTime(84, now);
@@ -2147,7 +2231,9 @@
                 const maxHold = Math.min(maxHoldSeconds || 30, 30);
                 const naturalEnd = now + maxHold;
                 const settleTime = now + 0.12;
-                const midFadeTime = Math.min(naturalEnd - 0.4, now + 1.1);
+                const holdFadeAnchor = Math.max(now + 0.32, naturalEnd - 0.35);
+                const midFadeTime = Math.min(now + 1.2, holdFadeAnchor - 0.08);
+                const lateFadeTime = Math.max(midFadeTime + 0.08, holdFadeAnchor);
 
                 const masterGain = ctx.createGain();
                 masterGain.connect(getAudioOutputNode(ctx));
@@ -2180,8 +2266,9 @@
                 toneGain.connect(hp);
                 toneGain.gain.setValueAtTime(0.0001, now);
                 toneGain.gain.linearRampToValueAtTime(guitarVolume, now + 0.008);
-                toneGain.gain.linearRampToValueAtTime(guitarVolume * 0.50, settleTime);
-                toneGain.gain.exponentialRampToValueAtTime(Math.max(guitarVolume * 0.22, 0.0001), midFadeTime);
+                toneGain.gain.linearRampToValueAtTime(guitarVolume * 0.42, settleTime);
+                toneGain.gain.exponentialRampToValueAtTime(Math.max(guitarVolume * 0.16, 0.0001), midFadeTime);
+                toneGain.gain.exponentialRampToValueAtTime(Math.max(guitarVolume * 0.06, 0.0001), lateFadeTime);
                 toneGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
 
                 const osc1 = ctx.createOscillator();
@@ -2224,9 +2311,9 @@
                 noiseHP.frequency.setValueAtTime(2700, now);
                 const noiseGain = ctx.createGain();
                 noiseGain.gain.setValueAtTime(0.0001, now);
-                noiseGain.gain.linearRampToValueAtTime(guitarVolume * 0.052, now + 0.012);
-                noiseGain.gain.exponentialRampToValueAtTime(guitarVolume * 0.013, now + 0.2);
-                noiseGain.gain.setValueAtTime(guitarVolume * 0.011, naturalEnd - 0.24);
+                noiseGain.gain.linearRampToValueAtTime(guitarVolume * 0.042, now + 0.012);
+                noiseGain.gain.exponentialRampToValueAtTime(Math.max(guitarVolume * 0.009, 0.0001), now + 0.16);
+                noiseGain.gain.exponentialRampToValueAtTime(Math.max(guitarVolume * 0.0035, 0.0001), lateFadeTime);
                 noiseGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
                 noiseSource.connect(noiseHP); noiseHP.connect(noiseGain); noiseGain.connect(hp);
 
@@ -2662,12 +2749,12 @@
             ctx.rect(x, y, w, h);
             ctx.clip();
             ctx.globalAlpha *= Math.max(0.2, Math.min(1, alpha));
-            ctx.strokeStyle = '#f3fdff';
+            ctx.strokeStyle = '#000000';
             ctx.fillStyle = '#f6feff';
 
             const center = {
                 x: x + (w * 0.5),
-                y: y + (h * 0.5)
+                y: y + (h * 0.64)
             };
             const radius = Math.max(4.2, Math.min(7.2, (Math.min(w, h) * 0.18)));
             ctx.lineWidth = Math.max(1.1, radius * 0.15);
@@ -2899,11 +2986,13 @@
                 } else if (themeIndex === 4 && !this.missed) {
                     const frostGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
                     if (this.hit || this.holding) {
-                        frostGradient.addColorStop(0, '#d9f3ff');
-                        frostGradient.addColorStop(1, '#ffffff');
+                        frostGradient.addColorStop(0, '#ffffff');
+                        frostGradient.addColorStop(0.34, '#eefbff');
+                        frostGradient.addColorStop(1, '#9fdfff');
                     } else {
-                        frostGradient.addColorStop(0, '#9cdcff');
-                        frostGradient.addColorStop(1, '#ffffff');
+                        frostGradient.addColorStop(0, '#ffffff');
+                        frostGradient.addColorStop(0.30, '#f1fcff');
+                        frostGradient.addColorStop(1, '#82d6ff');
                     }
                     ctx.fillStyle = frostGradient;
                 } else if (themeIndex === 5 && !this.missed) {
@@ -3140,22 +3229,22 @@
             }
 
             if (isElectricTheme) {
-                const startY = BAR_Y - (0.6 + Math.random() * 1.1);
-                const boltCount = Math.max(1, Math.floor(KEY_PARTICLE_COUNT * 0.5));
+                const startY = BAR_Y - 1.0;
+                const boltCount = 1;
 
                 for (let i = 0; i < boltCount; i++) {
                     const spawnX = keyRect.x + (Math.random() * keyRect.width);
-                    const lifetime = KEY_PARTICLE_LIFETIME - 7 + Math.floor(Math.random() * 6);
+                    const lifetime = KEY_PARTICLE_LIFETIME - 7;
                     gameState.keyParticles.push({
                         x: spawnX,
                         y: startY,
                         vx: (Math.random() - 0.5) * 0.34,
-                        vy: -(2.2 + Math.random() * 2.0),
+                        vy: -2.9,
                         gravity: 0.05,
                         phase: Math.random() * Math.PI * 2,
-                        boltLength: 8 + Math.random() * 5,
-                        boltJitter: 1.4 + Math.random() * 1.7,
-                        boltSegments: 4 + Math.floor(Math.random() * 3),
+                        boltLength: 10,
+                        boltJitter: 1.8,
+                        boltSegments: 5,
                         branchAngle: (Math.random() < 0.5 ? -1 : 1) * (0.28 + Math.random() * 0.3),
                         life: lifetime,
                         maxLife: lifetime,
@@ -3165,18 +3254,18 @@
                     });
                 }
 
-                const flashSparkCount = Math.max(2, KEY_PARTICLE_COUNT - 1);
+                const flashSparkCount = 1;
                 for (let i = 0; i < flashSparkCount; i++) {
                     const spawnX = keyRect.x + (Math.random() * keyRect.width);
                     gameState.keyParticles.push({
                         x: spawnX,
-                        y: BAR_Y - (0.2 + Math.random() * 1.2),
+                        y: BAR_Y - 0.8,
                         vx: (Math.random() - 0.5) * 1.15,
-                        vy: -(0.7 + Math.random() * 1.7),
+                        vy: -1.1,
                         gravity: 0.06,
-                        size: 0.8 + Math.random() * 1.5,
-                        life: 10 + Math.floor(Math.random() * 7),
-                        maxLife: 10 + Math.floor(Math.random() * 7),
+                        size: 1.1,
+                        life: 11,
+                        maxLife: 11,
                         color: '#f5fbff',
                         particleType: 'electric-spark'
                     });
@@ -3317,6 +3406,7 @@
         function updateKeyParticles() {
             const isIceThemeActive = (gameState.shop.selectedTheme | 0) === 4;
             const isGalacticThemeActive = (gameState.shop.selectedTheme | 0) === 5;
+            const isElectricThemeActive = (gameState.shop.selectedTheme | 0) === 3;
             const iceEmitInterval = 2;
             for (let column = 0; column < NUM_COLUMNS; column++) {
                 if (!gameState.pressedKeys.has(column)) {
@@ -3329,6 +3419,8 @@
                     spawnKeyParticles(column);
                     if (isGalacticThemeActive) {
                         gameState.keyParticleEmitTimers[column] = GALACTIC_EMIT_INTERVAL;
+                    } else if (isElectricThemeActive) {
+                        gameState.keyParticleEmitTimers[column] = ELECTRIC_EMIT_INTERVAL;
                     } else {
                         gameState.keyParticleEmitTimers[column] = isIceThemeActive ? iceEmitInterval : KEY_PARTICLE_EMIT_INTERVAL;
                     }
@@ -4219,6 +4311,10 @@
             if (tab === 'themes') gameState.shop.selectedTheme = index;
             else if (tab === 'background') gameState.shop.selectedBackground = index;
             else if (tab === 'instruments') gameState.shop.selectedInstrument = index;
+
+            if (tab === 'themes') {
+                updateSideWaveThemeColors();
+            }
             
             switchShopTab(tab);
         }
@@ -4447,6 +4543,8 @@
             }
             gameState.levelNotes = stored.notes;
             gameState.currentLevel = 'custom';
+            gameState.backgroundDrumEvents = [];
+            gameState.backgroundDrumIndex = 0;
             lastMidiAnalysis = stored.analysis;
             pendingLevelStart = 'custom';
             lastMidiData = stored;
@@ -4466,6 +4564,8 @@
                     if (result.notes.length > 0) {
                         gameState.levelNotes = result.notes;
                         gameState.currentLevel = 'custom';
+                        gameState.backgroundDrumEvents = [];
+                        gameState.backgroundDrumIndex = 0;
                         lastMidiAnalysis = result.analysis;
                         pendingLevelStart = 'custom';
                         lastMidiData = result;
@@ -4547,6 +4647,8 @@
             hideElement('midiAnalysisOverlay');
             gameState.customUploadRun = true;
             gameState.useMidiSchedule = true;
+            gameState.backgroundDrumEvents = [];
+            gameState.backgroundDrumIndex = 0;
             startLevelGame();
         }
         
@@ -5179,6 +5281,10 @@
         }
         
         function startLevelGame() {
+            if (gameState.currentLevel === 'custom') {
+                gameState.backgroundDrumEvents = [];
+                gameState.backgroundDrumIndex = 0;
+            }
             if (gameState.useMidiSchedule && Array.isArray(gameState.levelNotes) && gameState.levelNotes.length > 0) {
                 gameState.levelNotes = applyLifeNotesToUploadedLevel(gameState.levelNotes);
             }
@@ -6193,6 +6299,7 @@
         updateInfoText();
         renderLives();
         rebuildSideWaveBars();
+        updateSideWaveThemeColors();
         preloadLevelPreviewImages();
         setupLevelHoverBackgrounds();
         drawGame();
