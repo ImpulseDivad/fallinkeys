@@ -28,30 +28,57 @@
             display: flex;
             align-items: flex-end;
             gap: 4px;
-            padding: 0 8px;
+            padding: 0;
             pointer-events: none;
             z-index: 0;
             overflow: hidden;
-            opacity: 0;
+            opacity: 1;
             transition: opacity 0.16s ease-out;
         }
         .side-wave.active {
             opacity: 1;
         }
+        .side-wave-layer {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease-in;
+        }
+        .side-wave-layer.idle {
+            opacity: 1;
+            transition: opacity 0.35s ease-in-out;
+        }
+        .side-wave-layer.active {
+            opacity: 1;
+        }
+        #sideWaveLeft .side-wave-layer {
+            flex-direction: row-reverse;
+        }
+        #sideWaveRight .side-wave-layer {
+            flex-direction: row;
+        }
         #sideWaveLeft {
             left: 0;
             flex-direction: row-reverse;
-            background: linear-gradient(90deg, rgba(255, 255, 0, 0.3) 0%, rgba(255, 255, 0, 0.1) 22%, rgba(255, 255, 0, 0) 100%);
+            background: linear-gradient(90deg, rgba(42, 64, 104, 0.2) 0%, rgba(42, 64, 104, 0.08) 22%, rgba(42, 64, 104, 0) 100%);
         }
         #sideWaveRight {
             right: 0;
             flex-direction: row;
-            background: linear-gradient(270deg, rgba(255, 255, 0, 0.3) 0%, rgba(255, 255, 0, 0.1) 22%, rgba(255, 255, 0, 0) 100%);
+            background: linear-gradient(270deg, rgba(42, 64, 104, 0.2) 0%, rgba(42, 64, 104, 0.08) 22%, rgba(42, 64, 104, 0) 100%);
+        }
+        #sideWaveLeft.low-life {
+            background: linear-gradient(90deg, rgba(160, 32, 32, 0.24) 0%, rgba(160, 32, 32, 0.1) 22%, rgba(160, 32, 32, 0) 100%);
+        }
+        #sideWaveRight.low-life {
+            background: linear-gradient(270deg, rgba(160, 32, 32, 0.24) 0%, rgba(160, 32, 32, 0.1) 22%, rgba(160, 32, 32, 0) 100%);
         }
         .side-wave-bar {
             flex: 1 1 auto;
             min-width: 2px;
-            max-width: 7px;
             height: 100%;
             border-radius: 2px 2px 0 0;
             transform-origin: bottom center;
@@ -59,6 +86,12 @@
             opacity: 0.68;
             background: linear-gradient(180deg, rgba(255, 245, 120, 0.74) 0%, rgba(255, 236, 92, 0.52) 62%, rgba(255, 228, 70, 0.34) 100%);
             will-change: transform, opacity;
+        }
+        .side-wave.low-life .side-wave-bar {
+            background: linear-gradient(180deg, rgba(255, 120, 120, 0.86) 0%, rgba(255, 80, 80, 0.62) 62%, rgba(230, 45, 45, 0.4) 100%);
+        }
+        .side-wave-bar.idle {
+            opacity: 0.42;
         }
         .side-wave-bar.wave {
             animation: sideWavePulse 380ms cubic-bezier(0.2, 0.75, 0.2, 1);
@@ -871,10 +904,15 @@
         let lastHudCombo = null;
         let lastHudPracticeEnabled = null;
         const sideWaveState = {
-            leftBars: [],
-            rightBars: [],
+            layers: [],
+            idleLeftLayer: null,
+            idleRightLayer: null,
+            idleLeftBars: [],
+            idleRightBars: [],
             barCount: 0,
-            hideTimer: null
+            nextLayerIndex: 0,
+            activeBursts: 0,
+            idleAnimationFrame: null
         };
 
         function getSideWaveBarCount() {
@@ -898,34 +936,152 @@
 
             sideWaveLeftEl.innerHTML = '';
             sideWaveRightEl.innerHTML = '';
-            sideWaveState.leftBars = [];
-            sideWaveState.rightBars = [];
+            sideWaveState.layers = [];
+            sideWaveState.idleLeftLayer = null;
+            sideWaveState.idleRightLayer = null;
+            sideWaveState.idleLeftBars = [];
+            sideWaveState.idleRightBars = [];
             sideWaveState.barCount = count;
+            sideWaveState.nextLayerIndex = 0;
+            sideWaveState.activeBursts = 0;
+            sideWaveLeftEl.classList.remove('active');
+            sideWaveRightEl.classList.remove('active');
 
             if (count <= 0) return;
+
+            const idleLeftLayer = document.createElement('div');
+            const idleRightLayer = document.createElement('div');
+            idleLeftLayer.className = 'side-wave-layer idle';
+            idleRightLayer.className = 'side-wave-layer idle';
+            sideWaveLeftEl.appendChild(idleLeftLayer);
+            sideWaveRightEl.appendChild(idleRightLayer);
+            sideWaveState.idleLeftLayer = idleLeftLayer;
+            sideWaveState.idleRightLayer = idleRightLayer;
 
             for (let i = 0; i < count; i++) {
                 const leftBar = createWaveBar();
                 const rightBar = createWaveBar();
-                sideWaveLeftEl.appendChild(leftBar);
-                sideWaveRightEl.appendChild(rightBar);
-                sideWaveState.leftBars.push(leftBar);
-                sideWaveState.rightBars.push(rightBar);
+                leftBar.classList.add('idle');
+                rightBar.classList.add('idle');
+                idleLeftLayer.appendChild(leftBar);
+                idleRightLayer.appendChild(rightBar);
+                sideWaveState.idleLeftBars.push(leftBar);
+                sideWaveState.idleRightBars.push(rightBar);
             }
+
+            const layerCount = 3;
+            for (let layerIndex = 0; layerIndex < layerCount; layerIndex++) {
+                const leftLayer = document.createElement('div');
+                const rightLayer = document.createElement('div');
+                leftLayer.className = 'side-wave-layer';
+                rightLayer.className = 'side-wave-layer';
+                sideWaveLeftEl.appendChild(leftLayer);
+                sideWaveRightEl.appendChild(rightLayer);
+
+                const leftBars = [];
+                const rightBars = [];
+                for (let i = 0; i < count; i++) {
+                    const leftBar = createWaveBar();
+                    const rightBar = createWaveBar();
+                    leftLayer.appendChild(leftBar);
+                    rightLayer.appendChild(rightBar);
+                    leftBars.push(leftBar);
+                    rightBars.push(rightBar);
+                }
+
+                sideWaveState.layers.push({
+                    leftLayer,
+                    rightLayer,
+                    leftBars,
+                    rightBars,
+                    hideTimer: null
+                });
+            }
+
+            ensureSideWaveIdleAnimation();
+        }
+
+        function getSideWaveIdleBpm() {
+            const midiBpm = Number(lastMidiAnalysis && lastMidiAnalysis.bpm);
+            if (Number.isFinite(midiBpm) && midiBpm > 0) {
+                return Math.max(45, Math.min(180, midiBpm));
+            }
+
+            const levelBpms = { 1: 92, 2: 104, 3: 60 };
+            const levelBpm = levelBpms[gameState.currentLevel];
+            if (Number.isFinite(levelBpm) && levelBpm > 0) {
+                return levelBpm;
+            }
+
+            return 88;
+        }
+
+        function isGameplayActiveForIdleWave() {
+            return gameState.state === 'playing' || !!gameState.tutorialMode;
+        }
+
+        function updateSideWaveIdleAnimation(timestamp) {
+            const idleHidden = isGameplayActiveForIdleWave();
+            if (sideWaveState.idleLeftLayer && sideWaveState.idleRightLayer) {
+                sideWaveState.idleLeftLayer.style.opacity = idleHidden ? '0' : '1';
+                sideWaveState.idleRightLayer.style.opacity = idleHidden ? '0' : '1';
+            }
+
+            const barsCount = sideWaveState.barCount;
+            if (!idleHidden && barsCount > 0 && sideWaveState.idleLeftBars.length === barsCount && sideWaveState.idleRightBars.length === barsCount) {
+                const bpm = getSideWaveIdleBpm();
+                const beatMs = (60000 / Math.max(1, bpm)) * 4;
+                const phase = (timestamp / beatMs) * Math.PI * 2;
+
+                for (let i = 0; i < barsCount; i++) {
+                    const leftBar = sideWaveState.idleLeftBars[i];
+                    const rightBar = sideWaveState.idleRightBars[i];
+                    if (!leftBar || !rightBar) continue;
+
+                    const normalizedDistance = i / Math.max(1, barsCount - 1);
+                    const spread = 1 - (normalizedDistance * 0.35);
+                    const wobble = (Math.sin(phase + (i * 0.46)) + 1) * 0.5;
+                    const baseScale = 0.02 + (0.015 * spread);
+                    const travel = (0.04 + (0.025 * spread)) * wobble;
+                    const scale = Math.min(0.18, baseScale + travel);
+                    const alpha = 0.3 + (0.24 * wobble * spread);
+
+                    leftBar.style.transform = `scaleY(${scale.toFixed(3)})`;
+                    rightBar.style.transform = `scaleY(${scale.toFixed(3)})`;
+                    leftBar.style.opacity = alpha.toFixed(3);
+                    rightBar.style.opacity = alpha.toFixed(3);
+                }
+            }
+
+            sideWaveState.idleAnimationFrame = requestAnimationFrame(updateSideWaveIdleAnimation);
+        }
+
+        function ensureSideWaveIdleAnimation() {
+            if (sideWaveState.idleAnimationFrame !== null) return;
+            sideWaveState.idleAnimationFrame = requestAnimationFrame(updateSideWaveIdleAnimation);
         }
 
         function triggerSideWaveFromCenter(intensity = 1) {
             if (gameState.state !== 'playing') return;
             const barsCount = sideWaveState.barCount;
-            if (barsCount <= 0) return;
+            if (barsCount <= 0 || sideWaveState.layers.length === 0) return;
 
             const clampedIntensity = Math.max(0.75, Math.min(1.4, intensity || 1));
             const delayStep = 14;
+            const layer = sideWaveState.layers[sideWaveState.nextLayerIndex];
+            sideWaveState.nextLayerIndex = (sideWaveState.nextLayerIndex + 1) % sideWaveState.layers.length;
 
-            sideWaveLeftEl.classList.add('active');
-            sideWaveRightEl.classList.add('active');
-            if (sideWaveState.hideTimer) {
-                clearTimeout(sideWaveState.hideTimer);
+            if (sideWaveState.activeBursts === 0) {
+                sideWaveLeftEl.classList.add('active');
+                sideWaveRightEl.classList.add('active');
+            }
+            sideWaveState.activeBursts++;
+
+            layer.leftLayer.classList.add('active');
+            layer.rightLayer.classList.add('active');
+            if (layer.hideTimer) {
+                clearTimeout(layer.hideTimer);
+                layer.hideTimer = null;
             }
 
             for (let i = 0; i < barsCount; i++) {
@@ -933,8 +1089,8 @@
                 const waveFalloff = 1 - (normalizedDistance * 0.45);
                 const peak = (0.72 + ((1 - normalizedDistance) * 0.46)) * waveFalloff * clampedIntensity;
 
-                const leftBar = sideWaveState.leftBars[i];
-                const rightBar = sideWaveState.rightBars[i];
+                const leftBar = layer.leftBars[i];
+                const rightBar = layer.rightBars[i];
                 if (!leftBar || !rightBar) continue;
 
                 const delayMs = `${Math.round(i * delayStep)}ms`;
@@ -952,10 +1108,15 @@
                 rightBar.classList.add('wave');
             }
 
-            sideWaveState.hideTimer = setTimeout(() => {
-                sideWaveLeftEl.classList.remove('active');
-                sideWaveRightEl.classList.remove('active');
-                sideWaveState.hideTimer = null;
+            layer.hideTimer = setTimeout(() => {
+                layer.leftLayer.classList.remove('active');
+                layer.rightLayer.classList.remove('active');
+                layer.hideTimer = null;
+                sideWaveState.activeBursts = Math.max(0, sideWaveState.activeBursts - 1);
+                if (sideWaveState.activeBursts === 0) {
+                    sideWaveLeftEl.classList.remove('active');
+                    sideWaveRightEl.classList.remove('active');
+                }
             }, Math.round((barsCount * delayStep) + 420));
         }
 
@@ -1009,11 +1170,11 @@
             if (!gameState.audioContext || !gameState.audioMelodicGain) return;
             const now = gameState.audioContext.currentTime;
             const gainParam = gameState.audioMelodicGain.gain;
-            const duckTo = 0.42;
+            const duckTo = 0.32;
             gainParam.cancelScheduledValues(now);
             gainParam.setValueAtTime(Math.max(gainParam.value || 1, 0.0001), now);
             gainParam.linearRampToValueAtTime(duckTo, now + 0.008);
-            gainParam.exponentialRampToValueAtTime(1.0, now + 0.24);
+            gainParam.exponentialRampToValueAtTime(1.0, now + 0.28);
         }
 
         function syncMasterVolume() {
@@ -1650,7 +1811,7 @@
             const now = ctx.currentTime;
             const noteDuration = Math.max(duration, 0.22);
             const brightness = getGuitarBrightness(freq);
-            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.8 * brightness * noteGain;
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 1.06 * brightness * noteGain;
             const attackTime = 0.004;
             const bloomTime = 0.06;
             const releaseTime = Math.min(Math.max(noteDuration * 0.5, 0.13), 0.28);
@@ -1661,27 +1822,38 @@
             masterGain.connect(getAudioOutputNode(ctx));
             const hp = ctx.createBiquadFilter();
             hp.type = 'highpass';
-            hp.frequency.setValueAtTime(108, now);
+            hp.frequency.setValueAtTime(84, now);
             const body = ctx.createBiquadFilter();
             body.type = 'peaking';
             body.frequency.setValueAtTime(getGuitarBodyResonanceFreq(freq), now);
-            body.Q.setValueAtTime(1.0, now);
-            body.gain.setValueAtTime(2.4, now);
+            body.Q.setValueAtTime(0.95, now);
+            body.gain.setValueAtTime(3.15, now);
             const box = ctx.createBiquadFilter();
             box.type = 'peaking';
             box.frequency.setValueAtTime(getGuitarBoxResonanceFreq(freq), now);
             box.Q.setValueAtTime(0.9, now);
-            box.gain.setValueAtTime(1.6, now);
+            box.gain.setValueAtTime(2.25, now);
+            const warmth = ctx.createBiquadFilter();
+            warmth.type = 'peaking';
+            warmth.frequency.setValueAtTime(430, now);
+            warmth.Q.setValueAtTime(0.8, now);
+            warmth.gain.setValueAtTime(1.35, now);
             const presence = ctx.createBiquadFilter();
             presence.type = 'peaking';
-            presence.frequency.setValueAtTime(2980, now);
+            presence.frequency.setValueAtTime(2480, now);
             presence.Q.setValueAtTime(0.88, now);
-            presence.gain.setValueAtTime(2.15 * brightness, now);
+            presence.gain.setValueAtTime(1.3 * brightness, now);
             const lp = ctx.createBiquadFilter();
             lp.type = 'lowpass';
-            lp.frequency.setValueAtTime(getGuitarLowpassFreq(freq), now);
+            lp.frequency.setValueAtTime(getGuitarLowpassFreq(freq) * 0.86, now);
             lp.Q.setValueAtTime(0.72, now);
-            hp.connect(body); body.connect(box); box.connect(presence); presence.connect(lp); lp.connect(masterGain);
+            hp.connect(body); body.connect(box); box.connect(warmth); warmth.connect(presence); presence.connect(lp); lp.connect(masterGain);
+
+            const room = ctx.createConvolver();
+            room.buffer = ensureGuitarRoomImpulse(ctx);
+            const roomGain = ctx.createGain();
+            roomGain.gain.setValueAtTime(Math.min(volume * 0.15, 0.22), now);
+            lp.connect(room); room.connect(roomGain); roomGain.connect(masterGain);
 
             const toneGain = ctx.createGain();
             toneGain.connect(hp);
@@ -1696,7 +1868,7 @@
             oscMain.type = 'triangle';
             oscMain.frequency.setValueAtTime(freq, now);
             oscMain.detune.setValueAtTime((Math.random() - 0.5) * 2.6, now);
-            gainMain.gain.setValueAtTime(volume * 0.39, now);
+            gainMain.gain.setValueAtTime(volume * 0.44, now);
             oscMain.connect(gainMain); gainMain.connect(toneGain);
 
             const oscBody = ctx.createOscillator();
@@ -1704,7 +1876,7 @@
             oscBody.type = 'triangle';
             oscBody.frequency.setValueAtTime(freq, now);
             oscBody.detune.setValueAtTime((Math.random() - 0.5) * 3.5, now);
-            gainBody.gain.setValueAtTime(volume * 0.24, now);
+            gainBody.gain.setValueAtTime(volume * 0.29, now);
             oscBody.connect(gainBody); gainBody.connect(toneGain);
 
             const oscSparkle = ctx.createOscillator();
@@ -1712,22 +1884,22 @@
             oscSparkle.type = 'sine';
             oscSparkle.frequency.setValueAtTime(freq * 2, now);
             oscSparkle.detune.setValueAtTime((Math.random() - 0.5) * 1.7, now);
-            gainSparkle.gain.setValueAtTime(volume * 0.065 * brightness, now);
+            gainSparkle.gain.setValueAtTime(volume * 0.048 * brightness, now);
             oscSparkle.connect(gainSparkle); gainSparkle.connect(toneGain);
 
             const pluckNoise = ctx.createBufferSource();
             pluckNoise.buffer = ensureSaxNoiseBuffer(ctx);
             const pluckHP = ctx.createBiquadFilter();
             pluckHP.type = 'highpass';
-            pluckHP.frequency.setValueAtTime(1800, now);
+            pluckHP.frequency.setValueAtTime(1300, now);
             const pluckBP = ctx.createBiquadFilter();
             pluckBP.type = 'bandpass';
-            pluckBP.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 82), 1175), 82, 1175, 2100, 3300), now);
+            pluckBP.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 82), 1175), 82, 1175, 1650, 2550), now);
             pluckBP.Q.setValueAtTime(1.1, now);
             const pluckGain = ctx.createGain();
             pluckGain.gain.setValueAtTime(0.0001, now);
-            pluckGain.gain.linearRampToValueAtTime(volume * 0.39, now + 0.003);
-            pluckGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+            pluckGain.gain.linearRampToValueAtTime(volume * 0.26, now + 0.004);
+            pluckGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
             pluckNoise.connect(pluckHP); pluckHP.connect(pluckBP); pluckBP.connect(pluckGain); pluckGain.connect(hp);
 
             oscMain.start(now);
@@ -1746,7 +1918,7 @@
             const now = ctx.currentTime;
             const noteDuration = Math.max(duration, 0.2);
             const brightness = getGuitarBrightness(freq);
-            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.74 * brightness * noteGain;
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.30 * brightness * noteGain;
             const releaseTime = Math.min(Math.max(noteDuration * 0.46, 0.11), 0.26);
             const releaseStart = now + Math.max(noteDuration - releaseTime, 0.05);
             const endTime = releaseStart + releaseTime;
@@ -1871,7 +2043,7 @@
 
             if (instrument === 3) {
                 const brightness = getGuitarBrightness(freq);
-                const guitarVolume = volume * 0.86 * brightness;
+                const guitarVolume = volume * 1.04 * brightness;
                 const attackTime = 0.005;
                 const maxHold = Math.min(maxHoldSeconds || 30, 30);
                 const naturalEnd = now + maxHold;
@@ -1880,27 +2052,38 @@
                 masterGain.connect(getAudioOutputNode(ctx));
                 const hp = ctx.createBiquadFilter();
                 hp.type = 'highpass';
-                hp.frequency.setValueAtTime(108, now);
+                hp.frequency.setValueAtTime(84, now);
                 const body = ctx.createBiquadFilter();
                 body.type = 'peaking';
                 body.frequency.setValueAtTime(getGuitarBodyResonanceFreq(freq), now);
-                body.Q.setValueAtTime(1.0, now);
-                body.gain.setValueAtTime(2.35, now);
+                body.Q.setValueAtTime(0.95, now);
+                body.gain.setValueAtTime(3.1, now);
                 const box = ctx.createBiquadFilter();
                 box.type = 'peaking';
                 box.frequency.setValueAtTime(getGuitarBoxResonanceFreq(freq), now);
                 box.Q.setValueAtTime(0.9, now);
-                box.gain.setValueAtTime(1.55, now);
+                box.gain.setValueAtTime(2.2, now);
+                const warmth = ctx.createBiquadFilter();
+                warmth.type = 'peaking';
+                warmth.frequency.setValueAtTime(430, now);
+                warmth.Q.setValueAtTime(0.82, now);
+                warmth.gain.setValueAtTime(1.3, now);
                 const presence = ctx.createBiquadFilter();
                 presence.type = 'peaking';
-                presence.frequency.setValueAtTime(2920, now);
+                presence.frequency.setValueAtTime(2460, now);
                 presence.Q.setValueAtTime(0.9, now);
-                presence.gain.setValueAtTime(2.0 * brightness, now);
+                presence.gain.setValueAtTime(1.25 * brightness, now);
                 const lp = ctx.createBiquadFilter();
                 lp.type = 'lowpass';
-                lp.frequency.setValueAtTime(getGuitarLowpassFreq(freq), now);
+                lp.frequency.setValueAtTime(getGuitarLowpassFreq(freq) * 0.86, now);
                 lp.Q.setValueAtTime(0.72, now);
-                hp.connect(body); body.connect(box); box.connect(presence); presence.connect(lp); lp.connect(masterGain);
+                hp.connect(body); body.connect(box); box.connect(warmth); warmth.connect(presence); presence.connect(lp); lp.connect(masterGain);
+
+                const room = ctx.createConvolver();
+                room.buffer = ensureGuitarRoomImpulse(ctx);
+                const roomGain = ctx.createGain();
+                roomGain.gain.setValueAtTime(Math.min(guitarVolume * 0.14, 0.2), now);
+                lp.connect(room); room.connect(roomGain); roomGain.connect(masterGain);
 
                 const toneGain = ctx.createGain();
                 toneGain.connect(hp);
@@ -1915,7 +2098,7 @@
                 osc1.type = 'triangle';
                 osc1.frequency.setValueAtTime(freq, now);
                 osc1.detune.setValueAtTime((Math.random() - 0.5) * 2.4, now);
-                gain1.gain.setValueAtTime(guitarVolume * 0.38, now);
+                gain1.gain.setValueAtTime(guitarVolume * 0.43, now);
                 osc1.connect(gain1); gain1.connect(toneGain);
 
                 const osc2 = ctx.createOscillator();
@@ -1923,22 +2106,22 @@
                 osc2.type = 'triangle';
                 osc2.frequency.setValueAtTime(freq, now);
                 osc2.detune.setValueAtTime((Math.random() - 0.5) * 3.2, now);
-                gain2.gain.setValueAtTime(guitarVolume * 0.23, now);
+                gain2.gain.setValueAtTime(guitarVolume * 0.28, now);
                 osc2.connect(gain2); gain2.connect(toneGain);
 
                 const noiseSource = ctx.createBufferSource();
                 noiseSource.buffer = ensureSaxNoiseBuffer(ctx);
                 const noiseHP = ctx.createBiquadFilter();
                 noiseHP.type = 'highpass';
-                noiseHP.frequency.setValueAtTime(1700, now);
+                noiseHP.frequency.setValueAtTime(1280, now);
                 const noiseBP = ctx.createBiquadFilter();
                 noiseBP.type = 'bandpass';
-                noiseBP.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 82), 1175), 82, 1175, 2050, 3300), now);
+                noiseBP.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 82), 1175), 82, 1175, 1600, 2550), now);
                 noiseBP.Q.setValueAtTime(1.05, now);
                 const noiseGain = ctx.createGain();
                 noiseGain.gain.setValueAtTime(0.0001, now);
-                noiseGain.gain.linearRampToValueAtTime(guitarVolume * 0.11, now + 0.008);
-                noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+                noiseGain.gain.linearRampToValueAtTime(guitarVolume * 0.075, now + 0.01);
+                noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.095);
                 noiseSource.connect(noiseHP); noiseHP.connect(noiseBP); noiseBP.connect(noiseGain); noiseGain.connect(hp);
 
                 osc1.start(now); osc2.start(now); noiseSource.start(now);
@@ -1952,7 +2135,7 @@
                     osc3: null,
                     gain3: null,
                     masterGain: masterGain,
-                    extraGainNodes: [noiseGain],
+                    extraGainNodes: [noiseGain, roomGain],
                     extraOscillators: [noiseSource]
                 };
                 return;
@@ -1960,9 +2143,11 @@
 
             if (instrument === 4) {
                 const brightness = getGuitarBrightness(freq);
-                const guitarVolume = volume * 0.74 * brightness;
+                const guitarVolume = volume * 0.30 * brightness;
                 const maxHold = Math.min(maxHoldSeconds || 30, 30);
                 const naturalEnd = now + maxHold;
+                const settleTime = now + 0.12;
+                const midFadeTime = Math.min(naturalEnd - 0.4, now + 1.1);
 
                 const masterGain = ctx.createGain();
                 masterGain.connect(getAudioOutputNode(ctx));
@@ -1995,8 +2180,8 @@
                 toneGain.connect(hp);
                 toneGain.gain.setValueAtTime(0.0001, now);
                 toneGain.gain.linearRampToValueAtTime(guitarVolume, now + 0.008);
-                toneGain.gain.linearRampToValueAtTime(guitarVolume * 0.55, now + 0.09);
-                toneGain.gain.setValueAtTime(guitarVolume * 0.55, naturalEnd - 0.24);
+                toneGain.gain.linearRampToValueAtTime(guitarVolume * 0.50, settleTime);
+                toneGain.gain.exponentialRampToValueAtTime(Math.max(guitarVolume * 0.22, 0.0001), midFadeTime);
                 toneGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
 
                 const osc1 = ctx.createOscillator();
@@ -2026,10 +2211,8 @@
                 vibrato.frequency.setValueAtTime(5.6, now);
                 const vib1 = ctx.createGain();
                 const vib2 = ctx.createGain();
-                vib1.gain.setValueAtTime(0.0001, now);
-                vib1.gain.linearRampToValueAtTime(2.6, now + 0.22);
-                vib2.gain.setValueAtTime(0.0001, now);
-                vib2.gain.linearRampToValueAtTime(1.7, now + 0.22);
+                vib1.gain.setValueAtTime(1.1, now);
+                vib2.gain.setValueAtTime(0.72, now);
                 vibrato.connect(vib1); vibrato.connect(vib2);
                 vib1.connect(osc1.detune); vib2.connect(osc2.detune);
 
@@ -3594,13 +3777,6 @@
             el.className = 'show ' + type.toLowerCase();
             gameState.lastJudgement = type;
             gameState.judgementTimer = 45;
-
-            const intensityByJudgement = {
-                Perfect: 1.18,
-                Great: 1.02,
-                Allright: 0.9
-            };
-            triggerSideWaveFromCenter(intensityByJudgement[type] || 1);
             
             // Show combo multiplier when combo >= 5
             const comboEl = document.getElementById('comboMultiplier');
@@ -3630,6 +3806,12 @@
             return !!gameState.useMidiSchedule;
         }
 
+        function updateSideWaveLifeColorState() {
+            const lowLife = livesEnabledForCurrentRun() && gameState.state === 'playing' && gameState.lives === 1;
+            if (sideWaveLeftEl) sideWaveLeftEl.classList.toggle('low-life', lowLife);
+            if (sideWaveRightEl) sideWaveRightEl.classList.toggle('low-life', lowLife);
+        }
+
         function renderLives(breakingLifeNumber = null) {
             const el = document.getElementById('livesDisplay');
             if (!el) return;
@@ -3637,6 +3819,7 @@
             if (!livesEnabledForCurrentRun()) {
                 el.style.display = 'none';
                 el.innerHTML = '';
+                updateSideWaveLifeColorState();
                 return;
             }
 
@@ -3653,6 +3836,7 @@
                 }
             }
             el.innerHTML = html;
+            updateSideWaveLifeColorState();
         }
 
         function loseLife(column = null, flashFrames = WRONG_KEY_FLASH_FRAMES) {
@@ -5262,6 +5446,11 @@
             } else {
                 if (gameState.keysCurrentlyPressed.has(column)) return;
                 gameState.keysCurrentlyPressed.add(column);
+            }
+
+            // Wave responds to user clicks/presses instead of judgement timing.
+            if (!isMidiInput) {
+                triggerSideWaveFromCenter(1.0);
             }
 
             gameState.pressedColumnCounts[column] = (gameState.pressedColumnCounts[column] || 0) + 1;
