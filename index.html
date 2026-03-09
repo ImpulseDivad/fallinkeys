@@ -5304,6 +5304,17 @@
             return [...new Set(candidates)];
         }
 
+        function buildMidiCandidatesFromBaseNames(baseFileNames, maxSuffix = 12) {
+            if (!Array.isArray(baseFileNames) || baseFileNames.length === 0) return [];
+
+            const allCandidates = [];
+            for (const baseFileName of baseFileNames) {
+                allCandidates.push(...buildNumberedMidiCandidates(baseFileName, maxSuffix));
+            }
+
+            return [...new Set(allCandidates)];
+        }
+
         async function startLevel(levelNum) {
             hideElement('levelsOverlay');
             gameState.currentLevel = levelNum;
@@ -5314,19 +5325,20 @@
             
             // MIDI bestandsnamen voor elk level
             const levelBaseFileNames = {
-                1: 'Sunrise.mid',
-                2: 'Green Hills.mid',
-                3: 'Hades Desert.mid'
+                1: ['Sunrise.mid'],
+                2: ['Green Hills.mid'],
+                // Keep legacy names, but prefer explicit renamed files first.
+                3: ['Hades Desert (2).mid', 'Hades Desert.mid', 'hades desert.mid', 'Hades Desert.midi']
             };
 
             const levelDrumBaseFileNames = {
-                1: 'sunrise drums.mid',
-                2: 'green hills drums.mid',
-                3: 'hades desert drums.mid'
+                1: ['sunrise drums.mid'],
+                2: ['green hills drums.mid'],
+                3: ['hades desert drums (2).mid', 'hades desert drums.mid', 'Hades Desert Drums.mid', 'hades desert drums.midi']
             };
             
-            const levelFileNameCandidates = buildNumberedMidiCandidates(levelBaseFileNames[levelNum], 12);
-            const levelDrumFileNameCandidates = buildNumberedMidiCandidates(levelDrumBaseFileNames[levelNum], 12);
+            const levelFileNameCandidates = buildMidiCandidatesFromBaseNames(levelBaseFileNames[levelNum], 12);
+            const levelDrumFileNameCandidates = buildMidiCandidatesFromBaseNames(levelDrumBaseFileNames[levelNum], 12);
             const levelTargetBpms = { 3: 60 };
             const targetLevelBpm = levelTargetBpms[levelNum] || null;
             
