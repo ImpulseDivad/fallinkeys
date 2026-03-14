@@ -25,6 +25,7 @@
             --side-wave-bar-top: rgba(255, 245, 120, 0.74);
             --side-wave-bar-mid: rgba(255, 236, 92, 0.52);
             --side-wave-bar-bottom: rgba(255, 228, 70, 0.34);
+            --side-wave-bar-gradient: linear-gradient(180deg, var(--side-wave-bar-top) 0%, var(--side-wave-bar-mid) 62%, var(--side-wave-bar-bottom) 100%);
             position: fixed;
             bottom: 0;
             height: 50vh;
@@ -93,7 +94,7 @@
             transform-origin: bottom center;
             transform: scaleY(var(--base-scale, 0.02));
             opacity: 0;
-            background: linear-gradient(180deg, var(--side-wave-bar-top) 0%, var(--side-wave-bar-mid) 62%, var(--side-wave-bar-bottom) 100%);
+            background: var(--side-wave-bar-gradient);
         }
         .side-wave.low-life .side-wave-bar {
             background: linear-gradient(180deg, rgba(255, 120, 120, 0.86) 0%, rgba(255, 80, 80, 0.62) 62%, rgba(230, 45, 45, 0.4) 100%);
@@ -105,6 +106,11 @@
             animation: sideWavePulse 380ms cubic-bezier(0.2, 0.75, 0.2, 1);
             animation-delay: var(--delay-ms, 0ms);
             will-change: transform, opacity;
+        }
+        .side-wave-bar.hold {
+            transform: scaleY(var(--hold-scale, 0.56));
+            opacity: var(--hold-alpha, 0.72);
+            transition: transform 90ms linear, opacity 90ms linear;
         }
         @keyframes sideWavePulse {
             0% {
@@ -361,7 +367,8 @@
             word-break: break-word;
         }
         #shopOverlay .settings-content {
-            overflow-y: hidden;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .setting-row {
             display: flex;
@@ -553,6 +560,116 @@
         .shop-item:hover { border-color: #00aaff; }
         .shop-item.selected { border-color: #00ff00; background: #2a4a2a; }
         .shop-item.locked { opacity: 0.5; }
+
+        .lucky-box-panel {
+            width: 100%;
+            margin: 4px 0 10px;
+            padding: 12px;
+            border: 2px solid #836a2d;
+            border-radius: 10px;
+            background: linear-gradient(145deg, rgba(255, 220, 120, 0.22) 0%, rgba(140, 105, 36, 0.25) 100%);
+            cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .lucky-box-panel:hover {
+            transform: translateY(-1px);
+            border-color: #ffde77;
+        }
+        .lucky-box-title {
+            font-weight: 700;
+            font-size: 15px;
+            letter-spacing: 0.3px;
+        }
+        .lucky-box-subtitle {
+            font-size: 12px;
+            color: #e8d9b2;
+            margin-top: 3px;
+        }
+        .lucky-box-panel-icon {
+            font-size: 30px;
+            line-height: 1;
+        }
+
+        .lucky-box-modal {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.78);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 18px;
+            z-index: 60;
+        }
+        .lucky-box-modal.hidden,
+        #luckyBoxPanel.hidden {
+            display: none;
+        }
+        .lucky-box-modal-card {
+            width: min(92%, 310px);
+            background: #1f1f1f;
+            border: 2px solid #4f4f4f;
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+        }
+        .lucky-box-big {
+            width: 100%;
+            border: 2px solid #7a642e;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #4d3b17 0%, #2a220f 100%);
+            padding: 22px 12px;
+            font-size: 76px;
+            line-height: 1;
+            cursor: pointer;
+            transition: transform 0.16s ease, border-color 0.16s ease;
+        }
+        .lucky-box-big:hover {
+            transform: scale(1.02);
+            border-color: #ffdd73;
+        }
+        .lucky-box-big.opening {
+            animation: luckyBoxOpen 560ms cubic-bezier(0.2, 0.9, 0.2, 1);
+        }
+        @keyframes luckyBoxOpen {
+            0% { transform: scale(1) rotate(0deg); }
+            18% { transform: scale(0.93) rotate(-3deg); }
+            38% { transform: scale(1.07) rotate(4deg); }
+            58% { transform: scale(0.98) rotate(-2deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        .lucky-box-modal-card.flash {
+            animation: luckyBoxFlash 300ms ease-out;
+        }
+        @keyframes luckyBoxFlash {
+            0% {
+                box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+                border-color: #4f4f4f;
+            }
+            35% {
+                box-shadow: 0 0 0 2px var(--flash-color, rgba(255, 215, 90, 0.8)), 0 0 26px 5px var(--flash-color, rgba(255, 215, 90, 0.8));
+                border-color: var(--flash-color, #ffd85a);
+            }
+            100% {
+                box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+                border-color: #4f4f4f;
+            }
+        }
+        .lucky-box-result {
+            margin-top: 14px;
+            min-height: 28px;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.6px;
+        }
+        .rarity-allright { color: #ff9a2f; }
+        .rarity-great { color: #4da6ff; }
+        .rarity-epic { color: #b86cff; }
+        .rarity-sigma { color: #ffd447; }
         
         /* MIDI file input */
         #midiFileInput { display: none; }
@@ -627,6 +744,10 @@
                 Level 3: Hades Desert
                 <span class="stars" id="level3Stars">&#9734;&#9734;&#9734;</span>
             </button>
+            <button class="button level-btn" id="level4Btn" onclick="startLevel(4)">
+                Level 4: Sad Tunnel
+                <span class="stars" id="level4Stars">&#9734;&#9734;&#9734;</span>
+            </button>
             <div class="upload-area" onclick="document.getElementById('midiFileInput').click()">+</div>
             <input type="file" id="midiFileInput" accept=".mid,.midi" onchange="handleMidiUpload(event)">
             <p style="font-size: 12px; color: #888; margin-bottom: 10px;">Upload MIDI file</p>
@@ -643,7 +764,26 @@
                 <button class="button tab" id="shopInstTab" onclick="switchShopTab('instruments')">Instruments</button>
             </div>
             <div class="settings-content" id="shopContent">
+                <div id="luckyBoxPanel" class="lucky-box-panel" onclick="openLuckyBox()">
+                    <div>
+                        <div class="lucky-box-title">Lucky Box</div>
+                        <div class="lucky-box-subtitle">Tap to open and roll a rarity</div>
+                    </div>
+                    <div class="lucky-box-panel-icon">🎁</div>
+                </div>
                 <div class="shop-grid" id="shopGrid"></div>
+
+                <div class="lucky-box-modal hidden" id="luckyBoxModal" onclick="closeLuckyBoxModal()">
+                    <div class="lucky-box-modal-card" onclick="event.stopPropagation()">
+                        <h4 style="margin-bottom: 10px;">Lucky Box</h4>
+                        <button id="luckyBoxBigButton" class="lucky-box-big" onclick="revealLuckyBoxRarity()" title="Open Lucky Box">🎁</button>
+                        <div id="luckyBoxResult" class="lucky-box-result">Press OPEN below</div>
+                        <div style="display: flex; gap: 8px; justify-content: center; margin-top: 12px;">
+                            <button id="luckyBoxOpenButton" class="button small" onclick="revealLuckyBoxRarity()">OPEN</button>
+                            <button class="button small" onclick="closeLuckyBoxModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             <button class="button small" onclick="closeShop()">Back</button>
         </div>
@@ -749,6 +889,8 @@
         const GALACTIC_PARTICLE_HARD_CAP = 210;
         const GALACTIC_EMIT_INTERVAL = 2;
         const ELECTRIC_EMIT_INTERVAL = 12; // ~5 emits/sec at 60 FPS
+        const HELL_EMIT_INTERVAL = 10;
+        const RAINBOW_EMIT_INTERVAL = 3;
         const GALACTIC_DETAIL_PARTICLE_THRESHOLD = 120;
         const ICE_PARTICLE_SOFT_CAP = 70;
         const MENU_DEMO_MAX_TILES = 14;
@@ -854,13 +996,14 @@
                 selectedTheme: 0,
                 selectedBackground: 0,
                 selectedInstrument: 0,
-                unlockedThemes: [true, true, true, true, true, true, true],
+                luckyBoxLastOpenedMs: 0,
+                unlockedThemes: [true, true, true, true, true, true, true, true],
                 unlockedBackgrounds: [true, true, true],
                 unlockedInstruments: [true, true, true, true, true]
             },
             
             // Level ratings
-            levelRatings: {1: 0, 2: 0, 3: 0},
+            levelRatings: {1: 0, 2: 0, 3: 0, 4: 0},
             
             // Tutorial
             tutorialStep: 0,
@@ -930,11 +1073,25 @@
             barCount: 0,
             nextLayerIndex: 0,
             activeBursts: 0,
+            holdLayerIndex: -1,
             idleAnimationFrame: null,
             lastTriggerTime: 0,
             idleLastHidden: false,
             idleLastTickMs: 0
         };
+
+        const LUCKY_BOX_RARITIES = [
+            { name: 'allright', className: 'rarity-allright', weight: 48 },
+            { name: 'great', className: 'rarity-great', weight: 32 },
+            { name: 'epic', className: 'rarity-epic', weight: 15 },
+            { name: 'sigma', className: 'rarity-sigma', weight: 5 }
+        ];
+        const LUCKY_BOX_COOLDOWN_MS = 60 * 60 * 1000;
+        const LUCKY_BOX_STORAGE_KEY = 'fallinkeysLuckyBoxLastOpenMs';
+        const LUCKY_BOX_OPEN_ANIMATION_MS = 560;
+        const LUCKY_BOX_FLASH_ANIMATION_MS = 300;
+        let luckyBoxRevealInProgress = false;
+        let luckyBoxAnimationTimers = [];
 
         const SIDE_WAVE_IDLE_FPS = 45;
         const SIDE_WAVE_IDLE_FRAME_MS = 1000 / SIDE_WAVE_IDLE_FPS;
@@ -1107,6 +1264,21 @@
                         barMid: 'rgba(208, 118, 237, 0.6)',
                         barBottom: 'rgba(255, 127, 211, 0.46)'
                     };
+                case 6: // Hell
+                    return {
+                        panelRgb: '64, 8, 8',
+                        barTop: 'rgba(255, 70, 70, 0.9)',
+                        barMid: 'rgba(170, 24, 24, 0.64)',
+                        barBottom: 'rgba(22, 6, 6, 0.52)'
+                    };
+                case 7: // Rainbow
+                    return {
+                        panelRgb: '196, 138, 255',
+                        barTop: 'rgba(255, 107, 107, 0.84)',
+                        barMid: 'rgba(79, 206, 255, 0.62)',
+                        barBottom: 'rgba(150, 114, 255, 0.46)',
+                        barGradient: 'linear-gradient(180deg, rgba(255, 77, 77, 0.86) 0%, rgba(255, 146, 62, 0.84) 16%, rgba(255, 232, 79, 0.82) 32%, rgba(116, 240, 108, 0.8) 50%, rgba(79, 220, 255, 0.78) 66%, rgba(88, 136, 255, 0.76) 82%, rgba(180, 109, 255, 0.74) 100%)'
+                    };
                 default: // Default
                     return {
                         panelRgb: '255, 228, 70',
@@ -1128,10 +1300,63 @@
             sideWaveRightEl.style.setProperty('--side-wave-bar-top', palette.barTop);
             sideWaveRightEl.style.setProperty('--side-wave-bar-mid', palette.barMid);
             sideWaveRightEl.style.setProperty('--side-wave-bar-bottom', palette.barBottom);
+
+            const fallbackGradient = 'linear-gradient(180deg, var(--side-wave-bar-top) 0%, var(--side-wave-bar-mid) 62%, var(--side-wave-bar-bottom) 100%)';
+            const gradient = palette.barGradient || fallbackGradient;
+            sideWaveLeftEl.style.setProperty('--side-wave-bar-gradient', gradient);
+            sideWaveRightEl.style.setProperty('--side-wave-bar-gradient', gradient);
         }
 
         function isGameplayActiveForIdleWave() {
             return gameState.state === 'playing' || !!gameState.tutorialMode;
+        }
+
+        function hasActiveWaveInput() {
+            return gameState.pressedKeys.size > 0 || gameState.midiNotesCurrentlyPressed.size > 0;
+        }
+
+        function clearSideWaveHoldVisual() {
+            for (let i = 0; i < sideWaveState.layers.length; i++) {
+                const layer = sideWaveState.layers[i];
+                if (!layer) continue;
+                const barsCount = Math.max(layer.leftBars.length, layer.rightBars.length);
+                for (let j = 0; j < barsCount; j++) {
+                    const leftBar = layer.leftBars[j];
+                    const rightBar = layer.rightBars[j];
+                    if (leftBar) leftBar.classList.remove('hold');
+                    if (rightBar) rightBar.classList.remove('hold');
+                }
+            }
+            sideWaveState.holdLayerIndex = -1;
+        }
+
+        function applySideWaveHoldVisual(layer) {
+            if (!layer) return;
+            clearSideWaveHoldVisual();
+
+            const holdScale = '0.56';
+            const holdAlpha = '0.74';
+            const barsCount = Math.max(layer.leftBars.length, layer.rightBars.length);
+            for (let i = 0; i < barsCount; i++) {
+                const leftBar = layer.leftBars[i];
+                const rightBar = layer.rightBars[i];
+                if (leftBar) {
+                    leftBar.classList.remove('wave');
+                    leftBar.style.setProperty('--hold-scale', holdScale);
+                    leftBar.style.setProperty('--hold-alpha', holdAlpha);
+                    leftBar.classList.add('hold');
+                }
+                if (rightBar) {
+                    rightBar.classList.remove('wave');
+                    rightBar.style.setProperty('--hold-scale', holdScale);
+                    rightBar.style.setProperty('--hold-alpha', holdAlpha);
+                    rightBar.classList.add('hold');
+                }
+            }
+
+            layer.leftLayer.classList.add('active');
+            layer.rightLayer.classList.add('active');
+            sideWaveState.holdLayerIndex = sideWaveState.layers.indexOf(layer);
         }
 
         function updateSideWaveEnabledState() {
@@ -1150,6 +1375,7 @@
             }
 
             sideWaveState.activeBursts = 0;
+            clearSideWaveHoldVisual();
             if (sideWaveLeftEl) sideWaveLeftEl.classList.remove('active');
             if (sideWaveRightEl) sideWaveRightEl.classList.remove('active');
 
@@ -1248,8 +1474,13 @@
             }
             const activeCenter = (startIndex + endIndex) / 2;
             const parabolaRadius = Math.max(1, (activeBars - 1) / 2);
-            const layer = sideWaveState.layers[sideWaveState.nextLayerIndex];
+            const layerIndex = sideWaveState.nextLayerIndex;
+            const layer = sideWaveState.layers[layerIndex];
             sideWaveState.nextLayerIndex = (sideWaveState.nextLayerIndex + 1) % sideWaveState.layers.length;
+
+            if (sideWaveState.holdLayerIndex === layerIndex) {
+                clearSideWaveHoldVisual();
+            }
 
             if (sideWaveState.activeBursts === 0) {
                 sideWaveLeftEl.classList.add('active');
@@ -1302,13 +1533,21 @@
             });
 
             layer.hideTimer = setTimeout(() => {
-                layer.leftLayer.classList.remove('active');
-                layer.rightLayer.classList.remove('active');
                 layer.hideTimer = null;
                 sideWaveState.activeBursts = Math.max(0, sideWaveState.activeBursts - 1);
                 if (sideWaveState.activeBursts === 0) {
-                    sideWaveLeftEl.classList.remove('active');
-                    sideWaveRightEl.classList.remove('active');
+                    if (hasActiveWaveInput()) {
+                        applySideWaveHoldVisual(layer);
+                    } else {
+                        layer.leftLayer.classList.remove('active');
+                        layer.rightLayer.classList.remove('active');
+                        clearSideWaveHoldVisual();
+                        sideWaveLeftEl.classList.remove('active');
+                        sideWaveRightEl.classList.remove('active');
+                    }
+                } else if (!hasActiveWaveInput()) {
+                    layer.leftLayer.classList.remove('active');
+                    layer.rightLayer.classList.remove('active');
                 }
             }, 430);
         }
@@ -1338,6 +1577,7 @@
                 return;
             }
 
+            clearSideWaveHoldVisual();
             ensureSideWaveIdleAnimation();
         }
 
@@ -1682,6 +1922,7 @@
             const baseLevel = gameState.settings.volume * velocityNorm * 1.9;
             const isKick = midiNote <= 36;
             const isSnare = midiNote > 36 && midiNote <= 40;
+            const isOpenHat = midiNote === 46 || midiNote === 26;
             const isHat = midiNote >= 41;
 
             const output = getDrumOutputNode(ctx);
@@ -1749,6 +1990,35 @@
                 noiseGain.connect(output);
                 noise.start(now);
                 noise.stop(now + 0.18);
+                return;
+            }
+
+            if (isOpenHat) {
+                const hat = ctx.createBufferSource();
+                hat.buffer = noiseBuffer;
+                const hp = ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.setValueAtTime(4600, now);
+                const bp = ctx.createBiquadFilter();
+                bp.type = 'bandpass';
+                bp.frequency.setValueAtTime(7800, now);
+                bp.Q.setValueAtTime(0.72, now);
+                const shimmer = ctx.createBiquadFilter();
+                shimmer.type = 'peaking';
+                shimmer.frequency.setValueAtTime(9800, now);
+                shimmer.Q.setValueAtTime(0.7, now);
+                shimmer.gain.setValueAtTime(2.2, now);
+                const hatGain = ctx.createGain();
+                hatGain.gain.setValueAtTime(baseLevel * 0.25, now);
+                hatGain.gain.exponentialRampToValueAtTime(Math.max(baseLevel * 0.07, 0.0001), now + 0.12);
+                hatGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+                hat.connect(hp);
+                hp.connect(bp);
+                bp.connect(shimmer);
+                shimmer.connect(hatGain);
+                hatGain.connect(output);
+                hat.start(now);
+                hat.stop(now + 0.28);
                 return;
             }
 
@@ -2048,109 +2318,92 @@
 
         function playGuitarNote(ctx, freq, duration, noteGain = 1) {
             const now = ctx.currentTime;
-            const noteDuration = Math.max(duration, 0.22);
+            const noteDuration = Math.max(duration * 1.35, 0.28);
             const brightness = getGuitarBrightness(freq);
-            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 1.06 * brightness * noteGain;
-            const attackTime = 0.004;
-            const bloomTime = 0.06;
-            const releaseTime = Math.min(Math.max(noteDuration * 0.5, 0.13), 0.28);
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.72 * brightness * noteGain;
+            const attackTime = 0.003;
+            const bloomTime = 0.082;
+            const releaseTime = Math.min(Math.max(noteDuration * 0.52, 0.16), 0.34);
             const releaseStart = now + Math.max(noteDuration - releaseTime, attackTime + bloomTime + 0.02);
             const endTime = releaseStart + releaseTime;
 
             const masterGain = ctx.createGain();
+            masterGain.gain.setValueAtTime(0.84, now);
             masterGain.connect(getAudioOutputNode(ctx));
             const hp = ctx.createBiquadFilter();
             hp.type = 'highpass';
-            hp.frequency.setValueAtTime(84, now);
+            hp.frequency.setValueAtTime(122, now);
             const body = ctx.createBiquadFilter();
             body.type = 'peaking';
             body.frequency.setValueAtTime(getGuitarBodyResonanceFreq(freq), now);
             body.Q.setValueAtTime(0.95, now);
-            body.gain.setValueAtTime(3.15, now);
+            body.gain.setValueAtTime(3.35, now);
             const box = ctx.createBiquadFilter();
             box.type = 'peaking';
             box.frequency.setValueAtTime(getGuitarBoxResonanceFreq(freq), now);
             box.Q.setValueAtTime(0.9, now);
-            box.gain.setValueAtTime(2.25, now);
+            box.gain.setValueAtTime(2.42, now);
             const warmth = ctx.createBiquadFilter();
             warmth.type = 'peaking';
             warmth.frequency.setValueAtTime(430, now);
             warmth.Q.setValueAtTime(0.8, now);
-            warmth.gain.setValueAtTime(1.35, now);
+            warmth.gain.setValueAtTime(1.75, now);
             const presence = ctx.createBiquadFilter();
             presence.type = 'peaking';
-            presence.frequency.setValueAtTime(2480, now);
+            presence.frequency.setValueAtTime(2680, now);
             presence.Q.setValueAtTime(0.88, now);
-            presence.gain.setValueAtTime(1.3 * brightness, now);
+            presence.gain.setValueAtTime(1.55 * brightness, now);
             const lp = ctx.createBiquadFilter();
             lp.type = 'lowpass';
-            lp.frequency.setValueAtTime(getGuitarLowpassFreq(freq) * 0.86, now);
+            const lpStart = Math.max(900, getGuitarLowpassFreq(freq) * 1.08);
+            const lpEnd = Math.max(750, getGuitarLowpassFreq(freq) * 0.74);
+            lp.frequency.setValueAtTime(lpStart, now);
+            lp.frequency.exponentialRampToValueAtTime(lpEnd, now + Math.min(1.25, Math.max(noteDuration, 0.6)));
             lp.Q.setValueAtTime(0.72, now);
             hp.connect(body); body.connect(box); box.connect(warmth); warmth.connect(presence); presence.connect(lp); lp.connect(masterGain);
-
-            const room = ctx.createConvolver();
-            room.buffer = ensureGuitarRoomImpulse(ctx);
-            const roomGain = ctx.createGain();
-            roomGain.gain.setValueAtTime(Math.min(volume * 0.15, 0.22), now);
-            lp.connect(room); room.connect(roomGain); roomGain.connect(masterGain);
 
             const toneGain = ctx.createGain();
             toneGain.connect(hp);
             toneGain.gain.setValueAtTime(0.0001, now);
             toneGain.gain.linearRampToValueAtTime(volume, now + attackTime);
-            toneGain.gain.linearRampToValueAtTime(volume * 0.52, now + bloomTime);
-            toneGain.gain.setValueAtTime(volume * 0.52, releaseStart);
+            toneGain.gain.linearRampToValueAtTime(volume * 0.64, now + bloomTime);
+            toneGain.gain.exponentialRampToValueAtTime(Math.max(volume * 0.36, 0.0001), now + Math.min(0.95, noteDuration));
+            toneGain.gain.setValueAtTime(Math.max(volume * 0.32, 0.0001), releaseStart);
             toneGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
 
             const oscMain = ctx.createOscillator();
             const gainMain = ctx.createGain();
             oscMain.type = 'triangle';
             oscMain.frequency.setValueAtTime(freq, now);
-            oscMain.detune.setValueAtTime((Math.random() - 0.5) * 2.6, now);
-            gainMain.gain.setValueAtTime(volume * 0.44, now);
+            oscMain.detune.setValueAtTime((Math.random() - 0.5) * 1.9, now);
+            gainMain.gain.setValueAtTime(volume * 0.33, now);
             oscMain.connect(gainMain); gainMain.connect(toneGain);
 
             const oscBody = ctx.createOscillator();
             const gainBody = ctx.createGain();
-            oscBody.type = 'triangle';
+            oscBody.type = 'sine';
             oscBody.frequency.setValueAtTime(freq, now);
-            oscBody.detune.setValueAtTime((Math.random() - 0.5) * 3.5, now);
-            gainBody.gain.setValueAtTime(volume * 0.29, now);
+            oscBody.detune.setValueAtTime((Math.random() - 0.5) * 2.4, now);
+            gainBody.gain.setValueAtTime(volume * 0.15, now);
             oscBody.connect(gainBody); gainBody.connect(toneGain);
 
             const oscSparkle = ctx.createOscillator();
             const gainSparkle = ctx.createGain();
             oscSparkle.type = 'sine';
-            oscSparkle.frequency.setValueAtTime(freq * 2, now);
-            oscSparkle.detune.setValueAtTime((Math.random() - 0.5) * 1.7, now);
-            gainSparkle.gain.setValueAtTime(volume * 0.048 * brightness, now);
+            oscSparkle.frequency.setValueAtTime(freq * 2.8, now);
+            oscSparkle.detune.setValueAtTime((Math.random() - 0.5) * 1.4, now);
+            gainSparkle.gain.setValueAtTime(volume * 0.045 * brightness, now);
+            gainSparkle.gain.exponentialRampToValueAtTime(Math.max(volume * 0.02, 0.0001), now + 0.32);
             oscSparkle.connect(gainSparkle); gainSparkle.connect(toneGain);
-
-            const pluckNoise = ctx.createBufferSource();
-            pluckNoise.buffer = ensureSaxNoiseBuffer(ctx);
-            const pluckHP = ctx.createBiquadFilter();
-            pluckHP.type = 'highpass';
-            pluckHP.frequency.setValueAtTime(1300, now);
-            const pluckBP = ctx.createBiquadFilter();
-            pluckBP.type = 'bandpass';
-            pluckBP.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 82), 1175), 82, 1175, 1650, 2550), now);
-            pluckBP.Q.setValueAtTime(1.1, now);
-            const pluckGain = ctx.createGain();
-            pluckGain.gain.setValueAtTime(0.0001, now);
-            pluckGain.gain.linearRampToValueAtTime(volume * 0.26, now + 0.004);
-            pluckGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.055);
-            pluckNoise.connect(pluckHP); pluckHP.connect(pluckBP); pluckBP.connect(pluckGain); pluckGain.connect(hp);
 
             oscMain.start(now);
             oscBody.start(now);
             oscSparkle.start(now);
-            pluckNoise.start(now);
 
             const stopAt = endTime + 0.05;
             oscMain.stop(stopAt);
             oscBody.stop(stopAt);
             oscSparkle.stop(stopAt);
-            pluckNoise.stop(now + 0.06);
         }
 
         function playElectricGuitarNote(ctx, freq, duration, noteGain = 1) {
@@ -2282,16 +2535,17 @@
 
             if (instrument === 3) {
                 const brightness = getGuitarBrightness(freq);
-                const guitarVolume = volume * 1.04 * brightness;
+                const guitarVolume = volume * 0.68 * brightness;
                 const attackTime = 0.005;
                 const maxHold = Math.min(maxHoldSeconds || 30, 30);
                 const naturalEnd = now + maxHold;
 
                 const masterGain = ctx.createGain();
+                masterGain.gain.setValueAtTime(0.86, now);
                 masterGain.connect(getElectricAudioOutputNode(ctx));
                 const hp = ctx.createBiquadFilter();
                 hp.type = 'highpass';
-                hp.frequency.setValueAtTime(84, now);
+                hp.frequency.setValueAtTime(126, now);
                 const body = ctx.createBiquadFilter();
                 body.type = 'peaking';
                 body.frequency.setValueAtTime(getGuitarBodyResonanceFreq(freq), now);
@@ -2306,76 +2560,63 @@
                 warmth.type = 'peaking';
                 warmth.frequency.setValueAtTime(430, now);
                 warmth.Q.setValueAtTime(0.82, now);
-                warmth.gain.setValueAtTime(1.3, now);
+                warmth.gain.setValueAtTime(1.72, now);
                 const presence = ctx.createBiquadFilter();
                 presence.type = 'peaking';
-                presence.frequency.setValueAtTime(2460, now);
+                presence.frequency.setValueAtTime(2680, now);
                 presence.Q.setValueAtTime(0.9, now);
-                presence.gain.setValueAtTime(1.25 * brightness, now);
+                presence.gain.setValueAtTime(1.48 * brightness, now);
                 const lp = ctx.createBiquadFilter();
                 lp.type = 'lowpass';
-                lp.frequency.setValueAtTime(getGuitarLowpassFreq(freq) * 0.86, now);
+                const holdLpStart = Math.max(900, getGuitarLowpassFreq(freq) * 1.02);
+                const holdLpEnd = Math.max(760, getGuitarLowpassFreq(freq) * 0.72);
+                lp.frequency.setValueAtTime(holdLpStart, now);
+                lp.frequency.exponentialRampToValueAtTime(holdLpEnd, now + 1.6);
                 lp.Q.setValueAtTime(0.72, now);
                 hp.connect(body); body.connect(box); box.connect(warmth); warmth.connect(presence); presence.connect(lp); lp.connect(masterGain);
 
-                const room = ctx.createConvolver();
-                room.buffer = ensureGuitarRoomImpulse(ctx);
-                const roomGain = ctx.createGain();
-                roomGain.gain.setValueAtTime(Math.min(guitarVolume * 0.14, 0.2), now);
-                lp.connect(room); room.connect(roomGain); roomGain.connect(masterGain);
-
                 const toneGain = ctx.createGain();
                 toneGain.connect(hp);
-                toneGain.gain.setValueAtTime(0.0001, now);
-                toneGain.gain.linearRampToValueAtTime(guitarVolume, now + attackTime);
-                toneGain.gain.linearRampToValueAtTime(guitarVolume * 0.5, now + 0.09);
-                toneGain.gain.setValueAtTime(guitarVolume * 0.5, naturalEnd - 0.28);
-                toneGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+                applySustainDecay(toneGain, guitarVolume, now, attackTime, 0.62, 1.95, maxHold);
 
                 const osc1 = ctx.createOscillator();
                 const gain1 = ctx.createGain();
                 osc1.type = 'triangle';
                 osc1.frequency.setValueAtTime(freq, now);
-                osc1.detune.setValueAtTime((Math.random() - 0.5) * 2.4, now);
-                gain1.gain.setValueAtTime(guitarVolume * 0.43, now);
+                osc1.detune.setValueAtTime((Math.random() - 0.5) * 1.8, now);
+                gain1.gain.setValueAtTime(guitarVolume * 0.31, now);
                 osc1.connect(gain1); gain1.connect(toneGain);
 
                 const osc2 = ctx.createOscillator();
                 const gain2 = ctx.createGain();
-                osc2.type = 'triangle';
+                osc2.type = 'sine';
                 osc2.frequency.setValueAtTime(freq, now);
-                osc2.detune.setValueAtTime((Math.random() - 0.5) * 3.2, now);
-                gain2.gain.setValueAtTime(guitarVolume * 0.28, now);
+                osc2.detune.setValueAtTime((Math.random() - 0.5) * 2.4, now);
+                gain2.gain.setValueAtTime(guitarVolume * 0.14, now);
                 osc2.connect(gain2); gain2.connect(toneGain);
 
-                const noiseSource = ctx.createBufferSource();
-                noiseSource.buffer = ensureSaxNoiseBuffer(ctx);
-                const noiseHP = ctx.createBiquadFilter();
-                noiseHP.type = 'highpass';
-                noiseHP.frequency.setValueAtTime(1280, now);
-                const noiseBP = ctx.createBiquadFilter();
-                noiseBP.type = 'bandpass';
-                noiseBP.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 82), 1175), 82, 1175, 1600, 2550), now);
-                noiseBP.Q.setValueAtTime(1.05, now);
-                const noiseGain = ctx.createGain();
-                noiseGain.gain.setValueAtTime(0.0001, now);
-                noiseGain.gain.linearRampToValueAtTime(guitarVolume * 0.075, now + 0.01);
-                noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.095);
-                noiseSource.connect(noiseHP); noiseHP.connect(noiseBP); noiseBP.connect(noiseGain); noiseGain.connect(hp);
+                const osc3 = ctx.createOscillator();
+                const gain3 = ctx.createGain();
+                osc3.type = 'triangle';
+                osc3.frequency.setValueAtTime(freq * 2, now);
+                osc3.detune.setValueAtTime((Math.random() - 0.5) * 1.8, now);
+                gain3.gain.setValueAtTime(guitarVolume * 0.018 * brightness, now);
+                gain3.gain.exponentialRampToValueAtTime(0.0001, now + 0.24);
+                osc3.connect(gain3); gain3.connect(toneGain);
 
-                osc1.start(now); osc2.start(now); noiseSource.start(now);
-                osc1.stop(naturalEnd + 0.05); osc2.stop(naturalEnd + 0.05); noiseSource.stop(now + 0.1);
+                osc1.start(now); osc2.start(now); osc3.start(now);
+                osc1.stop(naturalEnd + 0.05); osc2.stop(naturalEnd + 0.05); osc3.stop(naturalEnd + 0.05);
 
                 gameState.oscillators[voiceKey] = {
                     oscillator: osc1,
                     gainNode: toneGain,
                     osc2: osc2,
                     gain2: gain2,
-                    osc3: null,
-                    gain3: null,
+                    osc3: osc3,
+                    gain3: gain3,
                     masterGain: masterGain,
-                    extraGainNodes: [noiseGain, roomGain],
-                    extraOscillators: [noiseSource]
+                    extraGainNodes: [],
+                    extraOscillators: []
                 };
                 return;
             }
@@ -2854,6 +3095,24 @@
                 };
             }
 
+            if (themeIndex === 6) {
+                return {
+                    base: '#2f0505',
+                    active: '#d33333',
+                    stroke: '#1a0404',
+                    label: '#ffd5d5'
+                };
+            }
+
+            if (themeIndex === 7) {
+                return {
+                    base: '#ff5f6d',
+                    active: '#5fd3ff',
+                    stroke: '#5e2a8f',
+                    label: '#ffffff'
+                };
+            }
+
             return {
                 base: TILE_COLOR,
                 active: gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR,
@@ -3032,6 +3291,116 @@
             ctx.restore();
         }
 
+        function drawHellPatternOnTile(tile, alpha = 1) {
+            const x = tile.x;
+            const y = tile.y;
+            const w = tile.width;
+            const h = tile.height;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            ctx.globalAlpha *= Math.max(0.25, Math.min(1, alpha));
+
+            const hot = ctx.createLinearGradient(x, y, x, y + h);
+            hot.addColorStop(0, 'rgba(255, 95, 95, 0.25)');
+            hot.addColorStop(1, 'rgba(0, 0, 0, 0.12)');
+            ctx.fillStyle = hot;
+            ctx.fillRect(x, y, w, h);
+
+            const lightMode = gameState.keyParticles.length > 170;
+            const centerX = x + (w * 0.5);
+            const centerY = y + (h * 0.53);
+
+            function drawBone(x1, y1, x2, y2, thickness = 2.2) {
+                const headRadius = Math.max(1.0, thickness * 0.62);
+
+                ctx.save();
+                ctx.strokeStyle = lightMode ? 'rgba(248, 245, 238, 0.85)' : 'rgba(255, 251, 241, 0.94)';
+                ctx.lineWidth = thickness;
+                ctx.lineCap = 'round';
+                ctx.shadowColor = lightMode ? 'rgba(0, 0, 0, 0)' : 'rgba(255, 132, 85, 0.28)';
+                ctx.shadowBlur = lightMode ? 0 : 5;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.stroke();
+
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = lightMode ? 'rgba(242, 238, 228, 0.9)' : 'rgba(255, 251, 241, 0.98)';
+
+                ctx.beginPath();
+                ctx.arc(x1, y1, headRadius, 0, Math.PI * 2);
+                ctx.arc(x1 + (thickness * 0.38), y1 + (thickness * 0.32), headRadius * 0.78, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.beginPath();
+                ctx.arc(x2, y2, headRadius, 0, Math.PI * 2);
+                ctx.arc(x2 - (thickness * 0.38), y2 - (thickness * 0.32), headRadius * 0.78, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            ctx.restore();
+
+            // Draw bones outside the tile bounds for a rougher, embedded look.
+            ctx.save();
+            ctx.globalAlpha *= Math.max(0.2, Math.min(1, alpha));
+            const boneLenLong = Math.max(7, Math.min(13, w * 0.62));
+            const boneLenShort = Math.max(6, Math.min(10, w * 0.48));
+            const edgePush = Math.max(1.6, w * 0.11);
+
+            drawBone(
+                x - edgePush,
+                centerY - (h * 0.20),
+                x + boneLenLong,
+                centerY - (h * 0.34),
+                lightMode ? 1.9 : 2.4
+            );
+            drawBone(
+                x - (edgePush * 0.75),
+                centerY + (h * 0.22),
+                x + boneLenShort,
+                centerY + (h * 0.33),
+                lightMode ? 1.75 : 2.2
+            );
+            drawBone(
+                x + w - boneLenLong,
+                centerY - (h * 0.35),
+                x + w + edgePush,
+                centerY - (h * 0.18),
+                lightMode ? 1.9 : 2.4
+            );
+            drawBone(
+                x + w - boneLenShort,
+                centerY + (h * 0.31),
+                x + w + (edgePush * 0.85),
+                centerY + (h * 0.19),
+                lightMode ? 1.75 : 2.2
+            );
+
+            if (!lightMode) {
+                drawBone(
+                    centerX - (w * 0.19),
+                    y + h - (h * 0.08),
+                    centerX + (w * 0.16),
+                    y + h + (h * 0.1),
+                    1.95
+                );
+            }
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(255, 72, 72, 0.42)';
+            ctx.shadowBlur = lightMode ? 2 : 7;
+            ctx.font = `${Math.max(13, Math.min(19, h * 0.34))}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+            ctx.fillStyle = '#ffe8e8';
+            ctx.fillText('💀', centerX, centerY);
+
+            ctx.restore();
+        }
+
         let tileIdCounter = 1;
 
         class Tile {
@@ -3160,6 +3529,27 @@
                         galacticGradient.addColorStop(1, '#d954c0');
                     }
                     ctx.fillStyle = galacticGradient;
+                } else if (themeIndex === 6 && !this.missed) {
+                    const hellGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    if (this.hit || this.holding) {
+                        hellGradient.addColorStop(0, '#741010');
+                        hellGradient.addColorStop(1, '#e33d3d');
+                    } else {
+                        hellGradient.addColorStop(0, '#120303');
+                        hellGradient.addColorStop(1, '#8a1414');
+                    }
+                    ctx.fillStyle = hellGradient;
+                } else if (themeIndex === 7 && !this.missed) {
+                    const rainbowShift = (gameState.gameFrame * 1.8) % 360;
+                    const rainbowGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    rainbowGradient.addColorStop(0.00, `hsl(${(rainbowShift + 0) % 360}, 95%, ${this.hit || this.holding ? '64%' : '57%'})`);
+                    rainbowGradient.addColorStop(0.17, `hsl(${(rainbowShift + 52) % 360}, 95%, ${this.hit || this.holding ? '66%' : '58%'})`);
+                    rainbowGradient.addColorStop(0.34, `hsl(${(rainbowShift + 104) % 360}, 95%, ${this.hit || this.holding ? '67%' : '59%'})`);
+                    rainbowGradient.addColorStop(0.51, `hsl(${(rainbowShift + 156) % 360}, 95%, ${this.hit || this.holding ? '66%' : '58%'})`);
+                    rainbowGradient.addColorStop(0.68, `hsl(${(rainbowShift + 208) % 360}, 95%, ${this.hit || this.holding ? '65%' : '57%'})`);
+                    rainbowGradient.addColorStop(0.84, `hsl(${(rainbowShift + 260) % 360}, 95%, ${this.hit || this.holding ? '64%' : '56%'})`);
+                    rainbowGradient.addColorStop(1.00, `hsl(${(rainbowShift + 312) % 360}, 95%, ${this.hit || this.holding ? '64%' : '57%'})`);
+                    ctx.fillStyle = rainbowGradient;
                 } else {
                     ctx.fillStyle = color;
                 }
@@ -3175,6 +3565,10 @@
 
                 if (!this.missed && themeIndex === 5) {
                     drawGalacticPatternOnTile(this, this.hit || this.holding ? 0.92 : 0.8);
+                }
+
+                if (!this.missed && themeIndex === 6) {
+                    drawHellPatternOnTile(this, this.hit || this.holding ? 0.95 : 0.82);
                 }
 
                 if (!this.hit && !this.missed && !this.holding && themeIndex === 0 && !gameState.tutorialMode) {
@@ -3283,6 +3677,8 @@
             const isElectricTheme = gameState.shop.selectedTheme === 3;
             const isIceTheme = gameState.shop.selectedTheme === 4;
             const isGalacticTheme = gameState.shop.selectedTheme === 5;
+            const isHellTheme = gameState.shop.selectedTheme === 6;
+            const isRainbowTheme = gameState.shop.selectedTheme === 7;
 
             if (isWaterfallTheme) {
                 const dropletColors = ['#bfeaff', '#79c8ff', '#2f7fe3'];
@@ -3428,6 +3824,63 @@
                 return;
             }
 
+            if (isHellTheme) {
+                const startY = BAR_Y - (0.8 + Math.random() * 0.9);
+                const skullCount = 1;
+                for (let i = 0; i < skullCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    const life = 14 + Math.floor(Math.random() * 5);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY,
+                        vx: (Math.random() - 0.5) * 0.35,
+                        vy: -(1.45 + Math.random() * 0.45),
+                        gravity: 0.026,
+                        phase: Math.random() * Math.PI * 2,
+                        size: 1,
+                        life,
+                        maxLife: life,
+                        color: '#ffe2e2',
+                        glowColor: '#d93030',
+                        particleType: 'hell-skull'
+                    });
+                }
+                return;
+            }
+
+            if (isRainbowTheme) {
+                const startY = BAR_Y - (0.6 + Math.random() * 0.8);
+                const streakCount = 2;
+                for (let i = 0; i < streakCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    const hue = Math.floor(Math.random() * 360);
+                    const life = 16 + Math.floor(Math.random() * 8);
+                    const length = 3.8 + Math.random() * 2.8;
+                    const angle = (-Math.PI / 2) + ((Math.random() - 0.5) * 0.8);
+                    const speed = 1.0 + Math.random() * 1.0;
+
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY,
+                        vx: Math.cos(angle) * speed * 0.72,
+                        vy: Math.sin(angle) * speed,
+                        gravity: 0.024,
+                        drag: 0.985,
+                        wobblePhase: Math.random() * Math.PI * 2,
+                        wobbleSpeed: 0.22 + Math.random() * 0.16,
+                        wobbleAmount: 0.045 + Math.random() * 0.035,
+                        rotation: Math.random() * Math.PI * 2,
+                        spin: (Math.random() - 0.5) * 0.12,
+                        length,
+                        hue,
+                        life,
+                        maxLife: life,
+                        particleType: 'rainbow-streak'
+                    });
+                }
+                return;
+            }
+
             if (isIceTheme) {
                 let existingIceFlakeCount = 0;
                 for (let i = 0; i < gameState.keyParticles.length; i++) {
@@ -3562,6 +4015,8 @@
             const isIceThemeActive = (gameState.shop.selectedTheme | 0) === 4;
             const isGalacticThemeActive = (gameState.shop.selectedTheme | 0) === 5;
             const isElectricThemeActive = (gameState.shop.selectedTheme | 0) === 3;
+            const isHellThemeActive = (gameState.shop.selectedTheme | 0) === 6;
+            const isRainbowThemeActive = (gameState.shop.selectedTheme | 0) === 7;
             const iceEmitInterval = 2;
             for (let column = 0; column < NUM_COLUMNS; column++) {
                 if (!gameState.pressedKeys.has(column)) {
@@ -3574,8 +4029,12 @@
                     spawnKeyParticles(column);
                     if (isGalacticThemeActive) {
                         gameState.keyParticleEmitTimers[column] = GALACTIC_EMIT_INTERVAL;
+                    } else if (isHellThemeActive) {
+                        gameState.keyParticleEmitTimers[column] = HELL_EMIT_INTERVAL;
                     } else if (isElectricThemeActive) {
                         gameState.keyParticleEmitTimers[column] = ELECTRIC_EMIT_INTERVAL;
+                    } else if (isRainbowThemeActive) {
+                        gameState.keyParticleEmitTimers[column] = RAINBOW_EMIT_INTERVAL;
                     } else {
                         gameState.keyParticleEmitTimers[column] = isIceThemeActive ? iceEmitInterval : KEY_PARTICLE_EMIT_INTERVAL;
                     }
@@ -3666,6 +4125,19 @@
                     particle.age = (particle.age || 0) + 1;
                     particle.vx *= 0.989;
                     particle.vy += particle.gravity || 0.008;
+                    particle.rotation = (particle.rotation || 0) + (particle.spin || 0);
+                } else if (particle.particleType === 'hell-skull') {
+                    particle.age = (particle.age || 0) + 1;
+                    particle.vx += Math.sin((particle.age * 0.15) + (particle.phase || 0)) * 0.01;
+                    particle.vx *= 0.988;
+                    particle.vy += particle.gravity || 0.026;
+                } else if (particle.particleType === 'rainbow-streak') {
+                    particle.age = (particle.age || 0) + 1;
+                    particle.wobblePhase = (particle.wobblePhase || 0) + (particle.wobbleSpeed || 0.26);
+                    particle.vx += Math.sin(particle.wobblePhase) * (particle.wobbleAmount || 0.05);
+                    particle.vy += particle.gravity || 0.024;
+                    particle.vx *= particle.drag || 0.985;
+                    particle.vy *= 0.996;
                     particle.rotation = (particle.rotation || 0) + (particle.spin || 0);
                 } else {
                     particle.vy += 0.03;
@@ -3798,6 +4270,56 @@
                         ctx.fill();
                         ctx.restore();
                     }
+                    continue;
+                }
+
+                if (particle.particleType === 'hell-skull') {
+                    const floatPulse = 0.92 + (Math.sin((gameState.gameFrame * 0.24) + (particle.phase || 0)) * 0.08);
+                    const skullHighLoad = highLoadEffects;
+
+                    if (!skullHighLoad) {
+                        ctx.save();
+                        ctx.translate(particle.x, particle.y);
+                        ctx.globalAlpha = Math.min(1, alpha * 0.96);
+                        ctx.font = `bold ${Math.max(12, Math.floor(14 * floatPulse))}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+                        ctx.textAlign = 'center';
+                        ctx.textBaseline = 'middle';
+                        ctx.shadowColor = particle.glowColor || '#d93030';
+                        ctx.shadowBlur = 7;
+                        ctx.fillStyle = particle.color || '#ffe2e2';
+                        ctx.fillText('💀', 0, 0);
+                        ctx.restore();
+                    } else {
+                        ctx.globalAlpha = Math.min(1, alpha * 0.9);
+                        ctx.fillStyle = '#ffdada';
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, 1.2, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    continue;
+                }
+
+                if (particle.particleType === 'rainbow-streak') {
+                    const streakLength = particle.length || 4.5;
+                    const hue = particle.hue || 0;
+                    const angle = Math.atan2(particle.vy, particle.vx) + (particle.rotation || 0) * 0.08;
+                    const lineAlpha = Math.min(1, alpha * 0.95);
+
+                    ctx.save();
+                    ctx.translate(particle.x, particle.y);
+                    ctx.rotate(angle);
+                    ctx.globalAlpha = lineAlpha;
+                    ctx.strokeStyle = `hsl(${hue}, 96%, 62%)`;
+                    ctx.lineWidth = highLoadEffects ? 1.2 : 1.6;
+                    if (!highLoadEffects) {
+                        ctx.shadowColor = `hsla(${hue}, 100%, 65%, 0.65)`;
+                        ctx.shadowBlur = 6;
+                    }
+                    ctx.beginPath();
+                    ctx.moveTo(-streakLength * 0.5, 0);
+                    ctx.lineTo(streakLength * 0.5, 0);
+                    ctx.stroke();
+                    ctx.restore();
                     continue;
                 }
 
@@ -4276,6 +4798,7 @@
         function showShop() {
             gameState.shopReturnState = 'menu';
             hideElement('menuOverlay');
+            closeLuckyBoxModal();
             switchShopTab('themes');
             showElement('shopOverlay');
         }
@@ -4283,17 +4806,193 @@
         function showShopFromPause() {
             gameState.shopReturnState = 'pause';
             hideElement('pauseOverlay');
+            closeLuckyBoxModal();
             switchShopTab('themes');
             showElement('shopOverlay');
         }
 
         function closeShop() {
+            closeLuckyBoxModal();
             hideElement('shopOverlay');
             if (gameState.shopReturnState === 'pause') {
                 showElement('pauseOverlay');
             } else {
                 showElement('menuOverlay');
             }
+        }
+
+        function openLuckyBox() {
+            const modal = document.getElementById('luckyBoxModal');
+            const result = document.getElementById('luckyBoxResult');
+            if (!modal || !result) return;
+            clearLuckyBoxAnimationTimers();
+            luckyBoxRevealInProgress = false;
+            const bigButton = document.getElementById('luckyBoxBigButton');
+            const card = document.querySelector('#luckyBoxModal .lucky-box-modal-card');
+            if (bigButton) bigButton.classList.remove('opening');
+            if (card) card.classList.remove('flash');
+            updateLuckyBoxCooldownUi();
+            modal.classList.remove('hidden');
+        }
+
+        function closeLuckyBoxModal() {
+            const modal = document.getElementById('luckyBoxModal');
+            clearLuckyBoxAnimationTimers();
+            luckyBoxRevealInProgress = false;
+            const bigButton = document.getElementById('luckyBoxBigButton');
+            const card = document.querySelector('#luckyBoxModal .lucky-box-modal-card');
+            if (bigButton) bigButton.classList.remove('opening');
+            if (card) card.classList.remove('flash');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function clearLuckyBoxAnimationTimers() {
+            for (const timerId of luckyBoxAnimationTimers) {
+                clearTimeout(timerId);
+            }
+            luckyBoxAnimationTimers = [];
+        }
+
+        function getLuckyBoxFlashColor(rarityName) {
+            if (rarityName === 'allright') return '#ff9a2f';
+            if (rarityName === 'great') return '#4da6ff';
+            if (rarityName === 'epic') return '#b86cff';
+            if (rarityName === 'sigma') return '#ffd447';
+            return '#ffd447';
+        }
+
+        function rollLuckyBoxRarity() {
+            const totalWeight = LUCKY_BOX_RARITIES.reduce((sum, rarity) => sum + rarity.weight, 0);
+            let roll = Math.random() * totalWeight;
+            for (const rarity of LUCKY_BOX_RARITIES) {
+                roll -= rarity.weight;
+                if (roll <= 0) return rarity;
+            }
+            return LUCKY_BOX_RARITIES[0];
+        }
+
+        function getLuckyBoxLastOpenedMs() {
+            const inMemory = Number(gameState.shop.luckyBoxLastOpenedMs || 0);
+            if (Number.isFinite(inMemory) && inMemory > 0) return inMemory;
+
+            const stored = Number(localStorage.getItem(LUCKY_BOX_STORAGE_KEY) || 0);
+            if (Number.isFinite(stored) && stored > 0) {
+                gameState.shop.luckyBoxLastOpenedMs = stored;
+                return stored;
+            }
+
+            return 0;
+        }
+
+        function setLuckyBoxLastOpenedMs(timestampMs) {
+            const safeTs = Number(timestampMs) || 0;
+            gameState.shop.luckyBoxLastOpenedMs = safeTs;
+            localStorage.setItem(LUCKY_BOX_STORAGE_KEY, String(safeTs));
+        }
+
+        function getLuckyBoxRemainingMs() {
+            const lastOpenedMs = getLuckyBoxLastOpenedMs();
+            if (!lastOpenedMs) return 0;
+            return Math.max(0, (lastOpenedMs + LUCKY_BOX_COOLDOWN_MS) - Date.now());
+        }
+
+        function formatLuckyBoxRemaining(remainingMs) {
+            const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = totalSeconds % 60;
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${seconds}s`;
+            }
+            return `${minutes}m ${seconds}s`;
+        }
+
+        function updateLuckyBoxCooldownUi() {
+            const result = document.getElementById('luckyBoxResult');
+            const openButton = document.getElementById('luckyBoxOpenButton');
+            const bigButton = document.getElementById('luckyBoxBigButton');
+            if (!result) return;
+
+            const remainingMs = getLuckyBoxRemainingMs();
+            const canOpen = remainingMs <= 0 && !luckyBoxRevealInProgress;
+
+            if (openButton) {
+                openButton.disabled = !canOpen;
+                openButton.textContent = luckyBoxRevealInProgress ? 'OPENING...' : (canOpen ? 'OPEN' : 'COOLDOWN');
+            }
+            if (bigButton) {
+                bigButton.disabled = !canOpen;
+                bigButton.title = luckyBoxRevealInProgress ? 'Opening Lucky Box' : (canOpen ? 'Open Lucky Box' : 'Lucky Box on cooldown');
+            }
+
+            if (luckyBoxRevealInProgress) {
+                result.className = 'lucky-box-result';
+                result.textContent = 'Opening...';
+                return;
+            }
+
+            if (canOpen) {
+                result.className = 'lucky-box-result';
+                result.textContent = 'Press OPEN below';
+            } else {
+                result.className = 'lucky-box-result';
+                result.textContent = `Ready in ${formatLuckyBoxRemaining(remainingMs)}`;
+            }
+        }
+
+        function revealLuckyBoxRarity() {
+            const result = document.getElementById('luckyBoxResult');
+            if (!result) return;
+            if (luckyBoxRevealInProgress) return;
+
+            const remainingMs = getLuckyBoxRemainingMs();
+            if (remainingMs > 0) {
+                updateLuckyBoxCooldownUi();
+                return;
+            }
+
+            const rarity = rollLuckyBoxRarity();
+            const openButton = document.getElementById('luckyBoxOpenButton');
+            const bigButton = document.getElementById('luckyBoxBigButton');
+            const card = document.querySelector('#luckyBoxModal .lucky-box-modal-card');
+
+            luckyBoxRevealInProgress = true;
+            clearLuckyBoxAnimationTimers();
+            if (openButton) {
+                openButton.disabled = true;
+                openButton.textContent = 'OPENING...';
+            }
+            if (bigButton) {
+                bigButton.disabled = true;
+                bigButton.classList.remove('opening');
+                void bigButton.offsetWidth;
+                bigButton.classList.add('opening');
+            }
+
+            result.className = 'lucky-box-result';
+            result.textContent = 'Opening...';
+
+            const flashTimer = setTimeout(() => {
+                if (!card) return;
+                card.style.setProperty('--flash-color', getLuckyBoxFlashColor(rarity.name));
+                card.classList.remove('flash');
+                void card.offsetWidth;
+                card.classList.add('flash');
+            }, LUCKY_BOX_OPEN_ANIMATION_MS);
+            luckyBoxAnimationTimers.push(flashTimer);
+
+            const revealTimer = setTimeout(() => {
+                if (card) card.classList.remove('flash');
+                if (bigButton) bigButton.classList.remove('opening');
+
+                result.className = `lucky-box-result ${rarity.className}`;
+                result.textContent = rarity.name.toUpperCase();
+                setLuckyBoxLastOpenedMs(Date.now());
+                luckyBoxRevealInProgress = false;
+                updateLuckyBoxCooldownUi();
+            }, LUCKY_BOX_OPEN_ANIMATION_MS + LUCKY_BOX_FLASH_ANIMATION_MS + 50);
+            luckyBoxAnimationTimers.push(revealTimer);
         }
         
         function showSettings() {
@@ -4320,7 +5019,7 @@
         }
         
         function updateLevelStars() {
-            for (let i = 1; i <= 3; i++) {
+            for (let i = 1; i <= 4; i++) {
                 const stars = gameState.levelRatings[i] || 0;
                 const el = document.getElementById(`level${i}Stars`);
                 if (!el) continue;
@@ -4346,6 +5045,7 @@
             const levelOneButton = document.getElementById('level1Btn');
             const levelTwoButton = document.getElementById('level2Btn');
             const levelThreeButton = document.getElementById('level3Btn');
+            const levelFourButton = document.getElementById('level4Btn');
             const levelsOverlay = document.getElementById('levelsOverlay');
 
             if (!levelOneButton || !levelTwoButton || !levelThreeButton || !levelsOverlay) return;
@@ -4362,9 +5062,11 @@
             levelOneButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelThreeButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
+            if (levelFourButton) levelFourButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelOneButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelThreeButton.addEventListener('blur', () => setLevelMenuPreview(null));
+            if (levelFourButton) levelFourButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelsOverlay.addEventListener('mouseleave', () => setLevelMenuPreview(null));
         }
 
@@ -4517,6 +5219,7 @@
         // Shop System
         // ============================================
         function switchShopTab(tab) {
+            closeLuckyBoxModal();
             document.querySelectorAll('#shopOverlay .tab').forEach(t => t.classList.remove('active'));
             const tabButtonIds = {
                 themes: 'shopThemesTab',
@@ -4524,6 +5227,11 @@
                 instruments: 'shopInstTab'
             };
             document.getElementById(tabButtonIds[tab])?.classList.add('active');
+
+            const luckyBoxPanel = document.getElementById('luckyBoxPanel');
+            if (luckyBoxPanel) {
+                luckyBoxPanel.classList.toggle('hidden', tab !== 'themes');
+            }
             
             const grid = document.getElementById('shopGrid');
             grid.innerHTML = '';
@@ -4536,8 +5244,8 @@
                     { name: 'Electric', icon: '⚡' },
                     { name: 'Ice', icon: '❄️' },
                     { name: 'Galactic', icon: '🌌' },
-                    null,
-                    null,
+                    { name: 'Hell', icon: '💀' },
+                    { name: 'Rainbow', icon: '🌈' },
                     null
                 ],
                 background: [],
@@ -5443,13 +6151,15 @@
                 1: ['Sunrise.mid'],
                 2: ['Green Hills.mid'],
                 // Keep legacy names, but prefer explicit renamed files first.
-                3: ['Hades Desert (2).mid', 'Hades Desert.mid', 'hades desert.mid', 'Hades Desert.midi']
+                3: ['Hades Desert (2).mid', 'Hades Desert.mid', 'hades desert.mid', 'Hades Desert.midi'],
+                4: ['Sad Tunnel.mid', 'sad tunnel.mid', 'Sad Tunnel.midi']
             };
 
             const levelDrumBaseFileNames = {
                 1: ['sunrise drums.mid'],
                 2: ['green hills drums.mid'],
-                3: ['hades desert drums (2).mid', 'hades desert drums.mid', 'Hades Desert Drums.mid', 'hades desert drums.midi']
+                3: ['hades desert drums (2).mid', 'hades desert drums.mid', 'Hades Desert Drums.mid', 'hades desert drums.midi'],
+                4: ['sad tunnel drums.mid', 'Sad Tunnel Drums.mid', 'sad tunnel drums.midi']
             };
             
             const levelFileNameCandidates = buildMidiCandidatesFromBaseNames(levelBaseFileNames[levelNum], 12);
@@ -5496,7 +6206,7 @@
                                 const drumResult = parseMidiFile(drumData);
                                 const travelFrames = getSpawnToBarFrames();
                                 const drumDelayFrames = Math.round(0.1 * FPS);
-                                const drumPitchSet = new Set([35, 36, 38, 40, 41, 42, 44, 46, 49, 51]);
+                                const drumPitchSet = new Set([26, 35, 36, 38, 40, 41, 42, 44, 46, 49, 51]);
                                 const melodyBpm = result.analysis?.bpm || 0;
                                 const drumBpm = drumResult.analysis?.bpm || 0;
                                 const bpmSyncRatio = (melodyBpm > 0 && drumBpm > 0)
@@ -5834,7 +6544,7 @@
             // Show score info
             const percentStr = totalNotes > 0 ? Math.round((gameState.score / maxScore) * 100) : 0;
             document.getElementById('levelScore').textContent = noStarsMode
-                ? `Score: ${gameState.score} / ${maxScore} (${percentStr}%) - Cheats/Practice actief: geen sterren`
+                ? 'Score verborgen - Cheats/Practice actief'
                 : `Score: ${gameState.score} / ${maxScore} (${percentStr}%)`;
             document.getElementById('levelStars').textContent = '\u2605'.repeat(stars) + '\u2606'.repeat(3 - stars);
             
@@ -5872,16 +6582,18 @@
                 gameState.keysCurrentlyPressed.add(column);
             }
 
-            // Wave responds to user clicks/presses instead of judgement timing.
-            if (!isMidiInput) {
-                // Map directly to keyboard position so low/high notes span the full wave range.
-                const pitchNorm = Math.max(0, Math.min(1, column / Math.max(1, NUM_COLUMNS - 1)));
-                triggerSideWaveFromCenter(1.0, pitchNorm);
-            }
+            // Wave responds to direct input timing.
+            const pitchNorm = Math.max(0, Math.min(1, column / Math.max(1, NUM_COLUMNS - 1)));
+            triggerSideWaveFromCenter(1.0, pitchNorm);
 
             gameState.pressedColumnCounts[column] = (gameState.pressedColumnCounts[column] || 0) + 1;
             gameState.pressedKeys.add(column);
             spawnKeyParticles(column);
+
+            if (gameState.state === 'playing' && !gameState.settings.waveDisabled) {
+                if (sideWaveLeftEl) sideWaveLeftEl.classList.add('active');
+                if (sideWaveRightEl) sideWaveRightEl.classList.add('active');
+            }
 
             if (noteNum !== null && noteNum !== undefined) {
                 setLastNotePlayed(getMidiNoteName(noteNum));
@@ -5916,14 +6628,24 @@
             if (gameState.pressedColumnCounts[column] === 0) {
                 gameState.pressedKeys.delete(column);
             }
+
+            if (gameState.state === 'playing' && !gameState.settings.waveDisabled) {
+                if (!hasActiveWaveInput() && sideWaveState.activeBursts === 0) {
+                    clearSideWaveHoldVisual();
+                    if (sideWaveLeftEl) sideWaveLeftEl.classList.remove('active');
+                    if (sideWaveRightEl) sideWaveRightEl.classList.remove('active');
+                }
+            }
             
             // Stop sound (or keep ringing while sustain pedal is down for MIDI input)
             if (isMidiInput && gameState.sustainPedalDown) {
                 gameState.sustainedMidiNotes.add(noteNum);
             } else {
-                stopSustainSound(column, isMidiInput ? 120 : 20, noteNum);
+                const isAcousticGuitar = (gameState.shop.selectedInstrument | 0) === 3;
+                const releaseFadeMs = isMidiInput ? 120 : (isAcousticGuitar ? 190 : 20);
+                stopSustainSound(column, releaseFadeMs, noteNum);
                 if (!isMidiInput) {
-                    stopAllVoicesForColumn(column, 20);
+                    stopAllVoicesForColumn(column, isAcousticGuitar ? 190 : 20);
                 }
             }
             
@@ -6192,17 +6914,6 @@
             if (loopToken !== gameState.gameLoopToken) return;
             if (gameState.state !== 'playing') return;
             updateKeyParticles();
-
-            // Support held-key retriggering for dense chords/repeats without accidental miss penalties.
-            if (gameState.keysCurrentlyPressed.size > 0 || gameState.midiNotesCurrentlyPressed.size > 0) {
-                const heldColumns = new Set(gameState.keysCurrentlyPressed);
-                for (const midiNote of gameState.midiNotesCurrentlyPressed) {
-                    heldColumns.add(midiNote % 12);
-                }
-                for (const heldColumn of heldColumns) {
-                    checkTileHit(heldColumn, { penalizeOnMiss: false });
-                }
-            }
 
             const tutorialFreezeNotes = gameState.tutorialMode && gameState.tutorialOverlayActive;
             let showTutorialFallingOverlay = false;
