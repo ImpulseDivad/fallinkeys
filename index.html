@@ -92,7 +92,7 @@
             border-radius: 2px 2px 0 0;
             transform-origin: bottom center;
             transform: scaleY(var(--base-scale, 0.02));
-            opacity: 0.68;
+            opacity: 0;
             background: linear-gradient(180deg, var(--side-wave-bar-top) 0%, var(--side-wave-bar-mid) 62%, var(--side-wave-bar-bottom) 100%);
         }
         .side-wave.low-life .side-wave-bar {
@@ -776,6 +776,8 @@
         
         // Key mappings
         const KEYS = {65:0, 87:1, 83:2, 69:3, 68:4, 67:5, 85:6, 74:7, 73:8, 75:9, 79:10, 76:11};
+        KEYS[80] = 10;  // P
+        KEYS[186] = 11; // ;
         const STRAIGHT_KEYS = {49:0, 50:1, 51:2, 52:3, 53:4, 54:5, 55:6, 56:7, 57:8, 48:9, 189:10, 187:11};
         
         // Base note frequencies for keyboard (C3 to B3) when no MIDI note
@@ -841,6 +843,7 @@
                 practiceModeEnabled: false,
                 easyHoldEnabled: false,
                 blueHitEnabled: true,
+                waveDisabled: false,
                 soundEnabled: true,
                 volume: 0.5,
                 metronomeEnabled: false
@@ -920,12 +923,21 @@
             idleRightLayer: null,
             idleLeftBars: [],
             idleRightBars: [],
+            idleSpreadByIndex: [],
+            idlePhaseByIndex: [],
+            idleScaleCache: [],
+            idleAlphaCache: [],
             barCount: 0,
             nextLayerIndex: 0,
             activeBursts: 0,
             idleAnimationFrame: null,
-            lastTriggerTime: 0
+            lastTriggerTime: 0,
+            idleLastHidden: false,
+            idleLastTickMs: 0
         };
+
+        const SIDE_WAVE_IDLE_FPS = 45;
+        const SIDE_WAVE_IDLE_FRAME_MS = 1000 / SIDE_WAVE_IDLE_FPS;
 
         const INSTRUMENT_PREVIEW_SFX_MAP = {
             0: ['SFX/e-piano click fx.mid'],
@@ -967,10 +979,16 @@
             sideWaveState.idleRightLayer = null;
             sideWaveState.idleLeftBars = [];
             sideWaveState.idleRightBars = [];
+            sideWaveState.idleSpreadByIndex = [];
+            sideWaveState.idlePhaseByIndex = [];
+            sideWaveState.idleScaleCache = [];
+            sideWaveState.idleAlphaCache = [];
             sideWaveState.barCount = count;
             sideWaveState.nextLayerIndex = 0;
             sideWaveState.activeBursts = 0;
             sideWaveState.lastTriggerTime = 0;
+            sideWaveState.idleLastHidden = false;
+            sideWaveState.idleLastTickMs = 0;
             sideWaveLeftEl.classList.remove('active');
             sideWaveRightEl.classList.remove('active');
 
@@ -994,6 +1012,12 @@
                 idleRightLayer.appendChild(rightBar);
                 sideWaveState.idleLeftBars.push(leftBar);
                 sideWaveState.idleRightBars.push(rightBar);
+
+                const normalizedDistance = i / Math.max(1, count - 1);
+                sideWaveState.idleSpreadByIndex.push(1 - (normalizedDistance * 0.35));
+                sideWaveState.idlePhaseByIndex.push(i * 0.46);
+                sideWaveState.idleScaleCache.push(-1);
+                sideWaveState.idleAlphaCache.push(-1);
             }
 
             const layerCount = 2;
@@ -1010,6 +1034,9 @@
                 for (let i = 0; i < count; i++) {
                     const leftBar = createWaveBar();
                     const rightBar = createWaveBar();
+                    const delayMs = `${Math.round(i * 14)}ms`;
+                    leftBar.style.setProperty('--delay-ms', delayMs);
+                    rightBar.style.setProperty('--delay-ms', delayMs);
                     leftLayer.appendChild(leftBar);
                     rightLayer.appendChild(rightBar);
                     leftBars.push(leftBar);
@@ -1107,15 +1134,51 @@
             return gameState.state === 'playing' || !!gameState.tutorialMode;
         }
 
+        function updateSideWaveEnabledState() {
+            const disabled = !!gameState.settings.waveDisabled;
+            if (sideWaveLeftEl) sideWaveLeftEl.style.display = disabled ? 'none' : '';
+            if (sideWaveRightEl) sideWaveRightEl.style.display = disabled ? 'none' : '';
+
+            if (!disabled) {
+                updateSideWaveGameplayState();
+                return;
+            }
+
+            if (sideWaveState.idleAnimationFrame !== null) {
+                cancelAnimationFrame(sideWaveState.idleAnimationFrame);
+                sideWaveState.idleAnimationFrame = null;
+            }
+
+            sideWaveState.activeBursts = 0;
+            if (sideWaveLeftEl) sideWaveLeftEl.classList.remove('active');
+            if (sideWaveRightEl) sideWaveRightEl.classList.remove('active');
+
+            for (let i = 0; i < sideWaveState.layers.length; i++) {
+                const layer = sideWaveState.layers[i];
+                if (!layer) continue;
+                layer.leftLayer?.classList.remove('active');
+                layer.rightLayer?.classList.remove('active');
+                if (layer.hideTimer) {
+                    clearTimeout(layer.hideTimer);
+                    layer.hideTimer = null;
+                }
+            }
+        }
+
         function updateSideWaveIdleAnimation(timestamp) {
             const idleHidden = isGameplayActiveForIdleWave();
             if (sideWaveState.idleLeftLayer && sideWaveState.idleRightLayer) {
-                sideWaveState.idleLeftLayer.style.opacity = idleHidden ? '0' : '1';
-                sideWaveState.idleRightLayer.style.opacity = idleHidden ? '0' : '1';
+                if (idleHidden !== sideWaveState.idleLastHidden) {
+                    sideWaveState.idleLeftLayer.style.opacity = idleHidden ? '0' : '1';
+                    sideWaveState.idleRightLayer.style.opacity = idleHidden ? '0' : '1';
+                }
             }
+            sideWaveState.idleLastHidden = idleHidden;
 
             const barsCount = sideWaveState.barCount;
-            if (!idleHidden && barsCount > 0 && sideWaveState.idleLeftBars.length === barsCount && sideWaveState.idleRightBars.length === barsCount) {
+            const elapsed = timestamp - sideWaveState.idleLastTickMs;
+            if (!idleHidden && barsCount > 0 && elapsed >= SIDE_WAVE_IDLE_FRAME_MS && sideWaveState.idleLeftBars.length === barsCount && sideWaveState.idleRightBars.length === barsCount) {
+                sideWaveState.idleLastTickMs = timestamp;
                 const bpm = getSideWaveIdleBpm();
                 const beatMs = (60000 / Math.max(1, bpm)) * 4;
                 const phase = (timestamp / beatMs) * Math.PI * 2;
@@ -1125,18 +1188,26 @@
                     const rightBar = sideWaveState.idleRightBars[i];
                     if (!leftBar || !rightBar) continue;
 
-                    const normalizedDistance = i / Math.max(1, barsCount - 1);
-                    const spread = 1 - (normalizedDistance * 0.35);
-                    const wobble = (Math.sin(phase + (i * 0.46)) + 1) * 0.5;
+                    const spread = sideWaveState.idleSpreadByIndex[i] || 1;
+                    const phaseOffset = sideWaveState.idlePhaseByIndex[i] || 0;
+                    const wobble = (Math.sin(phase + phaseOffset) + 1) * 0.5;
                     const baseScale = 0.02 + (0.015 * spread);
                     const travel = (0.04 + (0.025 * spread)) * wobble;
                     const scale = Math.min(0.18, baseScale + travel);
                     const alpha = 0.3 + (0.24 * wobble * spread);
+                    const prevScale = sideWaveState.idleScaleCache[i];
+                    const prevAlpha = sideWaveState.idleAlphaCache[i];
 
-                    leftBar.style.transform = `scaleY(${scale.toFixed(3)})`;
-                    rightBar.style.transform = `scaleY(${scale.toFixed(3)})`;
-                    leftBar.style.opacity = alpha.toFixed(3);
-                    rightBar.style.opacity = alpha.toFixed(3);
+                    if (Math.abs(scale - prevScale) > 0.0018 || Math.abs(alpha - prevAlpha) > 0.0045) {
+                        const scaleText = `scaleY(${scale.toFixed(3)})`;
+                        const alphaText = alpha.toFixed(3);
+                        leftBar.style.transform = scaleText;
+                        rightBar.style.transform = scaleText;
+                        leftBar.style.opacity = alphaText;
+                        rightBar.style.opacity = alphaText;
+                        sideWaveState.idleScaleCache[i] = scale;
+                        sideWaveState.idleAlphaCache[i] = alpha;
+                    }
                 }
             }
 
@@ -1144,11 +1215,13 @@
         }
 
         function ensureSideWaveIdleAnimation() {
+            if (gameState.settings.waveDisabled) return;
             if (sideWaveState.idleAnimationFrame !== null) return;
             sideWaveState.idleAnimationFrame = requestAnimationFrame(updateSideWaveIdleAnimation);
         }
 
         function triggerSideWaveFromCenter(intensity = 1, pitchNorm = 0.5) {
+            if (gameState.settings.waveDisabled) return;
             if (gameState.state !== 'playing') return;
             const barsCount = sideWaveState.barCount;
             if (barsCount <= 0 || sideWaveState.layers.length === 0) return;
@@ -1160,7 +1233,21 @@
             const clampedIntensity = Math.max(0.7, Math.min(1.05, intensity || 1));
             const clampedPitch = Math.max(0, Math.min(1, Number.isFinite(pitchNorm) ? pitchNorm : 0.5));
             const targetIndex = Math.round((1 - clampedPitch) * Math.max(0, barsCount - 1));
-            const delayStep = 14;
+            const activeBars = Math.max(1, Math.min(11, barsCount));
+            const halfSpan = (activeBars - 1) / 2;
+            let startIndex = Math.round(targetIndex - halfSpan);
+            let endIndex = startIndex + activeBars - 1;
+            if (startIndex < 0) {
+                endIndex += -startIndex;
+                startIndex = 0;
+            }
+            if (endIndex > barsCount - 1) {
+                const shift = endIndex - (barsCount - 1);
+                startIndex = Math.max(0, startIndex - shift);
+                endIndex = barsCount - 1;
+            }
+            const activeCenter = (startIndex + endIndex) / 2;
+            const parabolaRadius = Math.max(1, (activeBars - 1) / 2);
             const layer = sideWaveState.layers[sideWaveState.nextLayerIndex];
             sideWaveState.nextLayerIndex = (sideWaveState.nextLayerIndex + 1) % sideWaveState.layers.length;
 
@@ -1178,24 +1265,29 @@
             }
 
             for (let i = 0; i < barsCount; i++) {
-                const distanceToPitch = Math.abs(i - targetIndex) / Math.max(1, barsCount - 1);
-                const focus = 1 - Math.pow(distanceToPitch, 1.35);
-                const bed = 0.34;
-                const peak = (bed + (0.42 * focus)) * clampedIntensity;
-
                 const leftBar = layer.leftBars[i];
                 const rightBar = layer.rightBars[i];
                 if (!leftBar || !rightBar) continue;
 
-                const delayMs = `${Math.round(i * delayStep)}ms`;
-                const peakScale = Math.max(0.42, Math.min(0.88, peak)).toFixed(3);
+                const delayMs = '0ms';
+                const isActive = i >= startIndex && i <= endIndex;
+
+                let peakScale = 0.02;
+                if (isActive) {
+                    const distance = Math.abs(i - activeCenter);
+                    const normalized = Math.min(1, distance / parabolaRadius);
+                    const parabola = Math.max(0, 1 - (normalized * normalized));
+                    const sharpParabola = Math.pow(parabola, 1.9);
+                    const peak = (0.36 + (0.52 * sharpParabola)) * clampedIntensity;
+                    peakScale = Math.max(0.38, Math.min(0.9, peak));
+                }
 
                 leftBar.classList.remove('wave');
                 rightBar.classList.remove('wave');
                 leftBar.style.setProperty('--delay-ms', delayMs);
                 rightBar.style.setProperty('--delay-ms', delayMs);
-                leftBar.style.setProperty('--peak-scale', peakScale);
-                rightBar.style.setProperty('--peak-scale', peakScale);
+                leftBar.style.setProperty('--peak-scale', peakScale.toFixed(3));
+                rightBar.style.setProperty('--peak-scale', peakScale.toFixed(3));
             }
 
             requestAnimationFrame(() => {
@@ -1203,6 +1295,7 @@
                     const leftBar = layer.leftBars[i];
                     const rightBar = layer.rightBars[i];
                     if (!leftBar || !rightBar) continue;
+                    if (i < startIndex || i > endIndex) continue;
                     leftBar.classList.add('wave');
                     rightBar.classList.add('wave');
                 }
@@ -1217,10 +1310,18 @@
                     sideWaveLeftEl.classList.remove('active');
                     sideWaveRightEl.classList.remove('active');
                 }
-            }, Math.round((barsCount * delayStep) + 420));
+            }, 430);
         }
 
         function updateSideWaveGameplayState() {
+            if (gameState.settings.waveDisabled) {
+                if (sideWaveState.idleAnimationFrame !== null) {
+                    cancelAnimationFrame(sideWaveState.idleAnimationFrame);
+                    sideWaveState.idleAnimationFrame = null;
+                }
+                return;
+            }
+
             const isPlaying = gameState.state === 'playing';
             if (sideWaveLeftEl) sideWaveLeftEl.classList.toggle('playing', isPlaying);
             if (sideWaveRightEl) sideWaveRightEl.classList.toggle('playing', isPlaying);
@@ -4111,6 +4212,10 @@
             gameState.state = 'menu';
             updateSideWaveGameplayState();
             resetMenuInteractionState();
+            gameState.tutorialMode = false;
+            gameState.tutorialStep = 0;
+            gameState.tutorialOverlayActive = false;
+            gameState.tutorialFallingPromptDone = false;
             gameState.lastJudgement = '';
             gameState.judgementTimer = 0;
             const judgementEl = document.getElementById('judgementDisplay');
@@ -4540,6 +4645,10 @@
                         <label>Blue Hit Effect</label>
                         <button class="button small" onclick="toggleBlueHit()">${gameState.settings.blueHitEnabled ? 'ON' : 'OFF'}</button>
                     </div>
+                    <div class="setting-row">
+                        <label>Wave Disabled</label>
+                        <button class="button small" onclick="toggleWaveDisabled()">${gameState.settings.waveDisabled ? 'ON' : 'OFF'}</button>
+                    </div>
                 `;
             } else if (tab === 'audio') {
                 content.innerHTML = `
@@ -4606,6 +4715,12 @@
         
         function toggleBlueHit() {
             gameState.settings.blueHitEnabled = !gameState.settings.blueHitEnabled;
+            switchSettingsTab('visuals');
+        }
+
+        function toggleWaveDisabled() {
+            gameState.settings.waveDisabled = !gameState.settings.waveDisabled;
+            updateSideWaveEnabledState();
             switchSettingsTab('visuals');
         }
         
@@ -5507,6 +5622,7 @@
             gameState.pressedColumnCounts = Array(NUM_COLUMNS).fill(0);
             gameState.spawnCounter = 0;
             gameState.gameFrame = 0;
+            gameState.levelNoteIndex = 0;
             gameState.backgroundDrumIndex = 0;
             if (!gameState.useMidiSchedule) {
                 gameState.backgroundDrumEvents = [];
@@ -5758,8 +5874,8 @@
 
             // Wave responds to user clicks/presses instead of judgement timing.
             if (!isMidiInput) {
-                const freq = BASE_FREQUENCIES[column] || 440;
-                const pitchNorm = Math.max(0, Math.min(1, (Math.log2(Math.max(40, freq) / 40)) / Math.log2(1760 / 40)));
+                // Map directly to keyboard position so low/high notes span the full wave range.
+                const pitchNorm = Math.max(0, Math.min(1, column / Math.max(1, NUM_COLUMNS - 1)));
                 triggerSideWaveFromCenter(1.0, pitchNorm);
             }
 
@@ -5778,7 +5894,7 @@
             
             // If in game, check for tile hit
             if (gameState.state === 'playing') {
-                checkTileHit(column);
+                checkTileHit(column, { penalizeOnMiss: true });
             }
             
             // Redraw to show pressed key visual
@@ -5825,7 +5941,8 @@
             }
         }
         
-        function checkTileHit(column) {
+        function checkTileHit(column, options = {}) {
+            const penalizeOnMiss = options.penalizeOnMiss !== false;
             let tile = null;
             let maxY = -Infinity;
             const cheatsEnabled = gameState.settings.cheatsEnabled;
@@ -5929,7 +6046,7 @@
                 }
             } else {
                 // Wrong key - no tile in hit zone
-                if (!gameState.settings.cheatsEnabled) {
+                if (penalizeOnMiss && !gameState.settings.cheatsEnabled) {
                     loseLife(column);
                 }
             }
@@ -6075,6 +6192,17 @@
             if (loopToken !== gameState.gameLoopToken) return;
             if (gameState.state !== 'playing') return;
             updateKeyParticles();
+
+            // Support held-key retriggering for dense chords/repeats without accidental miss penalties.
+            if (gameState.keysCurrentlyPressed.size > 0 || gameState.midiNotesCurrentlyPressed.size > 0) {
+                const heldColumns = new Set(gameState.keysCurrentlyPressed);
+                for (const midiNote of gameState.midiNotesCurrentlyPressed) {
+                    heldColumns.add(midiNote % 12);
+                }
+                for (const heldColumn of heldColumns) {
+                    checkTileHit(heldColumn, { penalizeOnMiss: false });
+                }
+            }
 
             const tutorialFreezeNotes = gameState.tutorialMode && gameState.tutorialOverlayActive;
             let showTutorialFallingOverlay = false;
@@ -6300,7 +6428,9 @@
         // Key code mappings (using e.code for modern browsers)
         const KEY_CODES = {
             'KeyA': 0, 'KeyW': 1, 'KeyS': 2, 'KeyE': 3, 'KeyD': 4, 'KeyC': 5,
-            'KeyU': 6, 'KeyJ': 7, 'KeyI': 8, 'KeyK': 9, 'KeyO': 10, 'KeyL': 11
+            'KeyU': 6, 'KeyJ': 7, 'KeyI': 8, 'KeyK': 9, 'KeyO': 10, 'KeyL': 11,
+            // Fallback keys for anti-ghosting on some keyboards (high columns).
+            'KeyP': 10, 'Semicolon': 11
         };
         const STRAIGHT_KEY_CODES = {
             'Digit1': 0, 'Digit2': 1, 'Digit3': 2, 'Digit4': 3, 'Digit5': 4, 'Digit6': 5,
@@ -6503,7 +6633,7 @@
         updateInfoText();
         renderLives();
         rebuildSideWaveBars();
-        updateSideWaveGameplayState();
+        updateSideWaveEnabledState();
         updateSideWaveThemeColors();
         preloadLevelPreviewImages();
         setupLevelHoverBackgrounds();
