@@ -1922,7 +1922,7 @@
             const baseLevel = gameState.settings.volume * velocityNorm * 1.9;
             const isKick = midiNote <= 36;
             const isSnare = midiNote > 36 && midiNote <= 40;
-            const isOpenHat = midiNote === 46 || midiNote === 26;
+            const isOpenHat = midiNote === 46 || midiNote === 26 || midiNote === 23 || midiNote === 55;
             const isHat = midiNote >= 41;
 
             const output = getDrumOutputNode(ctx);
@@ -1998,27 +1998,51 @@
                 hat.buffer = noiseBuffer;
                 const hp = ctx.createBiquadFilter();
                 hp.type = 'highpass';
-                hp.frequency.setValueAtTime(4600, now);
+                hp.frequency.setValueAtTime(4200, now);
                 const bp = ctx.createBiquadFilter();
                 bp.type = 'bandpass';
-                bp.frequency.setValueAtTime(7800, now);
-                bp.Q.setValueAtTime(0.72, now);
+                bp.frequency.setValueAtTime(9200, now);
+                bp.Q.setValueAtTime(0.85, now);
                 const shimmer = ctx.createBiquadFilter();
                 shimmer.type = 'peaking';
-                shimmer.frequency.setValueAtTime(9800, now);
-                shimmer.Q.setValueAtTime(0.7, now);
-                shimmer.gain.setValueAtTime(2.2, now);
+                shimmer.frequency.setValueAtTime(10800, now);
+                shimmer.Q.setValueAtTime(0.9, now);
+                shimmer.gain.setValueAtTime(3.2, now);
                 const hatGain = ctx.createGain();
-                hatGain.gain.setValueAtTime(baseLevel * 0.25, now);
-                hatGain.gain.exponentialRampToValueAtTime(Math.max(baseLevel * 0.07, 0.0001), now + 0.12);
-                hatGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.26);
+                hatGain.gain.setValueAtTime(baseLevel * 0.48, now);
+                hatGain.gain.exponentialRampToValueAtTime(Math.max(baseLevel * 0.16, 0.0001), now + 0.18);
+                hatGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.52);
                 hat.connect(hp);
                 hp.connect(bp);
                 bp.connect(shimmer);
                 shimmer.connect(hatGain);
                 hatGain.connect(output);
+
+                // Add a subtle metallic ring so open hi-hat cuts through the mix.
+                const ringOscA = ctx.createOscillator();
+                const ringGainA = ctx.createGain();
+                ringOscA.type = 'square';
+                ringOscA.frequency.setValueAtTime(7600, now);
+                ringGainA.gain.setValueAtTime(baseLevel * 0.05, now);
+                ringGainA.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+                ringOscA.connect(ringGainA);
+                ringGainA.connect(output);
+
+                const ringOscB = ctx.createOscillator();
+                const ringGainB = ctx.createGain();
+                ringOscB.type = 'square';
+                ringOscB.frequency.setValueAtTime(10300, now);
+                ringGainB.gain.setValueAtTime(baseLevel * 0.032, now);
+                ringGainB.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+                ringOscB.connect(ringGainB);
+                ringGainB.connect(output);
+
                 hat.start(now);
-                hat.stop(now + 0.28);
+                ringOscA.start(now);
+                ringOscB.start(now);
+                hat.stop(now + 0.54);
+                ringOscA.stop(now + 0.16);
+                ringOscB.stop(now + 0.12);
                 return;
             }
 
@@ -6206,7 +6230,7 @@
                                 const drumResult = parseMidiFile(drumData);
                                 const travelFrames = getSpawnToBarFrames();
                                 const drumDelayFrames = Math.round(0.1 * FPS);
-                                const drumPitchSet = new Set([26, 35, 36, 38, 40, 41, 42, 44, 46, 49, 51]);
+                                const drumPitchSet = new Set([23, 26, 35, 36, 38, 40, 41, 42, 44, 46, 49, 51, 55]);
                                 const melodyBpm = result.analysis?.bpm || 0;
                                 const drumBpm = drumResult.analysis?.bpm || 0;
                                 const bpmSyncRatio = (melodyBpm > 0 && drumBpm > 0)
