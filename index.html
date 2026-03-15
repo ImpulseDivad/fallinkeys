@@ -890,6 +890,7 @@
         const GALACTIC_EMIT_INTERVAL = 2;
         const ELECTRIC_EMIT_INTERVAL = 12; // ~5 emits/sec at 60 FPS
         const HELL_EMIT_INTERVAL = 10;
+        const HEAVEN_EMIT_INTERVAL = 14;
         const RAINBOW_EMIT_INTERVAL = 3;
         const GALACTIC_DETAIL_PARTICLE_THRESHOLD = 120;
         const ICE_PARTICLE_SOFT_CAP = 70;
@@ -997,7 +998,7 @@
                 selectedBackground: 0,
                 selectedInstrument: 0,
                 luckyBoxLastOpenedMs: 0,
-                unlockedThemes: [true, true, true, true, true, true, true, true],
+                unlockedThemes: [true, true, true, true, true, true, true, true, true],
                 unlockedBackgrounds: [true, true, true],
                 unlockedInstruments: [true, true, true, true, true]
             },
@@ -1042,6 +1043,7 @@
             audioMelodicGain: null,
             audioElectricGain: null,
             oscillators: {},
+            activeOpenHatVoice: null,
             noteOnTimestamps: {},
             lastGlobalNoteOnMs: 0,
             trumpetNoiseBuffer: null,
@@ -1205,7 +1207,9 @@
                     rightLayer,
                     leftBars,
                     rightBars,
-                    hideTimer: null
+                    hideTimer: null,
+                    holdStartIndex: -1,
+                    holdEndIndex: -1
                 });
             }
 
@@ -1279,6 +1283,14 @@
                         barBottom: 'rgba(150, 114, 255, 0.46)',
                         barGradient: 'linear-gradient(180deg, rgba(255, 77, 77, 0.86) 0%, rgba(255, 146, 62, 0.84) 16%, rgba(255, 232, 79, 0.82) 32%, rgba(116, 240, 108, 0.8) 50%, rgba(79, 220, 255, 0.78) 66%, rgba(88, 136, 255, 0.76) 82%, rgba(180, 109, 255, 0.74) 100%)'
                     };
+                case 8: // Heaven
+                    return {
+                        panelRgb: '210, 236, 255',
+                        barTop: 'rgba(255, 255, 255, 0.94)',
+                        barMid: 'rgba(206, 233, 255, 0.72)',
+                        barBottom: 'rgba(154, 202, 242, 0.52)',
+                        barGradient: 'linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(225, 241, 255, 0.84) 52%, rgba(171, 209, 242, 0.62) 100%)'
+                    };
                 default: // Default
                     return {
                         panelRgb: '255, 228, 70',
@@ -1336,21 +1348,27 @@
 
             const holdScale = '0.56';
             const holdAlpha = '0.74';
+            const hasHoldRange = Number.isInteger(layer.holdStartIndex) && Number.isInteger(layer.holdEndIndex) && layer.holdStartIndex >= 0 && layer.holdEndIndex >= layer.holdStartIndex;
             const barsCount = Math.max(layer.leftBars.length, layer.rightBars.length);
             for (let i = 0; i < barsCount; i++) {
                 const leftBar = layer.leftBars[i];
                 const rightBar = layer.rightBars[i];
+                const inHoldRange = hasHoldRange ? (i >= layer.holdStartIndex && i <= layer.holdEndIndex) : false;
                 if (leftBar) {
                     leftBar.classList.remove('wave');
-                    leftBar.style.setProperty('--hold-scale', holdScale);
-                    leftBar.style.setProperty('--hold-alpha', holdAlpha);
-                    leftBar.classList.add('hold');
+                    if (inHoldRange) {
+                        leftBar.style.setProperty('--hold-scale', holdScale);
+                        leftBar.style.setProperty('--hold-alpha', holdAlpha);
+                        leftBar.classList.add('hold');
+                    }
                 }
                 if (rightBar) {
                     rightBar.classList.remove('wave');
-                    rightBar.style.setProperty('--hold-scale', holdScale);
-                    rightBar.style.setProperty('--hold-alpha', holdAlpha);
-                    rightBar.classList.add('hold');
+                    if (inHoldRange) {
+                        rightBar.style.setProperty('--hold-scale', holdScale);
+                        rightBar.style.setProperty('--hold-alpha', holdAlpha);
+                        rightBar.classList.add('hold');
+                    }
                 }
             }
 
@@ -1494,6 +1512,8 @@
                 clearTimeout(layer.hideTimer);
                 layer.hideTimer = null;
             }
+            layer.holdStartIndex = startIndex;
+            layer.holdEndIndex = endIndex;
 
             for (let i = 0; i < barsCount; i++) {
                 const leftBar = layer.leftBars[i];
@@ -1922,8 +1942,9 @@
             const baseLevel = gameState.settings.volume * velocityNorm * 1.9;
             const isKick = midiNote <= 36;
             const isSnare = midiNote > 36 && midiNote <= 40;
-            const isOpenHat = midiNote === 46 || midiNote === 26 || midiNote === 23 || midiNote === 55;
-            const isHat = midiNote >= 41;
+            const isOpenHatExplicit = midiNote === 46 || midiNote === 26 || midiNote === 23 || midiNote === 55 || midiNote === 54 || midiNote === 56;
+            const isOpenHat = isOpenHatExplicit || (midiNote >= 52 && midiNote <= 59);
+            const isHat = midiNote >= 41 || isOpenHat;
 
             const output = getDrumOutputNode(ctx);
 
@@ -1994,55 +2015,92 @@
             }
 
             if (isOpenHat) {
+                // Choke previous open hat to avoid heavy overlap and audio lag.
+                if (gameState.activeOpenHatVoice) {
+                    const prev = gameState.activeOpenHatVoice;
+                    const stopAt = now + 0.018;
+                    try {
+                        if (prev.gain && prev.gain.gain) {
+                            prev.gain.gain.cancelScheduledValues(now);
+                            prev.gain.gain.setValueAtTime(Math.max(prev.gain.gain.value || 0.0001, 0.0001), now);
+                            prev.gain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+                        }
+                        if (prev.transGain && prev.transGain.gain) {
+                            prev.transGain.gain.cancelScheduledValues(now);
+                            prev.transGain.gain.setValueAtTime(Math.max(prev.transGain.gain.value || 0.0001, 0.0001), now);
+                            prev.transGain.gain.exponentialRampToValueAtTime(0.0001, stopAt);
+                        }
+                        if (prev.hat) prev.hat.stop(stopAt + 0.01);
+                        if (prev.transient) prev.transient.stop(stopAt + 0.01);
+                        if (prev.ringA) prev.ringA.stop(stopAt + 0.01);
+                    } catch (_) {}
+                }
+
                 const hat = ctx.createBufferSource();
                 hat.buffer = noiseBuffer;
                 const hp = ctx.createBiquadFilter();
                 hp.type = 'highpass';
-                hp.frequency.setValueAtTime(4200, now);
+                hp.frequency.setValueAtTime(4100, now);
                 const bp = ctx.createBiquadFilter();
                 bp.type = 'bandpass';
-                bp.frequency.setValueAtTime(9200, now);
-                bp.Q.setValueAtTime(0.85, now);
+                bp.frequency.setValueAtTime(9400, now);
+                bp.Q.setValueAtTime(0.68, now);
                 const shimmer = ctx.createBiquadFilter();
                 shimmer.type = 'peaking';
-                shimmer.frequency.setValueAtTime(10800, now);
-                shimmer.Q.setValueAtTime(0.9, now);
-                shimmer.gain.setValueAtTime(3.2, now);
+                shimmer.frequency.setValueAtTime(11200, now);
+                shimmer.Q.setValueAtTime(0.82, now);
+                shimmer.gain.setValueAtTime(5.2, now);
                 const hatGain = ctx.createGain();
-                hatGain.gain.setValueAtTime(baseLevel * 0.48, now);
-                hatGain.gain.exponentialRampToValueAtTime(Math.max(baseLevel * 0.16, 0.0001), now + 0.18);
-                hatGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.52);
+                hatGain.gain.setValueAtTime(baseLevel * 0.84, now);
+                hatGain.gain.exponentialRampToValueAtTime(Math.max(baseLevel * 0.3, 0.0001), now + 0.24);
+                hatGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.86);
                 hat.connect(hp);
                 hp.connect(bp);
                 bp.connect(shimmer);
                 shimmer.connect(hatGain);
                 hatGain.connect(output);
 
+                const transient = ctx.createBufferSource();
+                transient.buffer = noiseBuffer;
+                const transHP = ctx.createBiquadFilter();
+                transHP.type = 'highpass';
+                transHP.frequency.setValueAtTime(7600, now);
+                const transBP = ctx.createBiquadFilter();
+                transBP.type = 'bandpass';
+                transBP.frequency.setValueAtTime(12500, now);
+                transBP.Q.setValueAtTime(1.2, now);
+                const transGain = ctx.createGain();
+                transGain.gain.setValueAtTime(baseLevel * 0.28, now);
+                transGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.045);
+                transient.connect(transHP);
+                transHP.connect(transBP);
+                transBP.connect(transGain);
+                transGain.connect(output);
+
                 // Add a subtle metallic ring so open hi-hat cuts through the mix.
                 const ringOscA = ctx.createOscillator();
                 const ringGainA = ctx.createGain();
                 ringOscA.type = 'square';
-                ringOscA.frequency.setValueAtTime(7600, now);
-                ringGainA.gain.setValueAtTime(baseLevel * 0.05, now);
-                ringGainA.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+                ringOscA.frequency.setValueAtTime(8600, now);
+                ringGainA.gain.setValueAtTime(baseLevel * 0.052, now);
+                ringGainA.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
                 ringOscA.connect(ringGainA);
                 ringGainA.connect(output);
 
-                const ringOscB = ctx.createOscillator();
-                const ringGainB = ctx.createGain();
-                ringOscB.type = 'square';
-                ringOscB.frequency.setValueAtTime(10300, now);
-                ringGainB.gain.setValueAtTime(baseLevel * 0.032, now);
-                ringGainB.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
-                ringOscB.connect(ringGainB);
-                ringGainB.connect(output);
-
                 hat.start(now);
+                transient.start(now);
                 ringOscA.start(now);
-                ringOscB.start(now);
-                hat.stop(now + 0.54);
-                ringOscA.stop(now + 0.16);
-                ringOscB.stop(now + 0.12);
+                hat.stop(now + 0.88);
+                transient.stop(now + 0.05);
+                ringOscA.stop(now + 0.22);
+
+                gameState.activeOpenHatVoice = {
+                    hat,
+                    transient,
+                    ringA: ringOscA,
+                    gain: hatGain,
+                    transGain
+                };
                 return;
             }
 
@@ -3137,6 +3195,15 @@
                 };
             }
 
+            if (themeIndex === 8) {
+                return {
+                    base: '#f7fcff',
+                    active: '#ffffff',
+                    stroke: '#8cc7ef',
+                    label: '#1a4f77'
+                };
+            }
+
             return {
                 base: TILE_COLOR,
                 active: gameState.settings.blueHitEnabled ? '#00aaff' : TILE_HIT_COLOR,
@@ -3322,106 +3389,68 @@
             const h = tile.height;
 
             ctx.save();
-            ctx.beginPath();
-            ctx.rect(x, y, w, h);
-            ctx.clip();
-            ctx.globalAlpha *= Math.max(0.25, Math.min(1, alpha));
+            ctx.globalAlpha *= Math.max(0.3, Math.min(1, alpha));
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.15)';
+            ctx.shadowBlur = 1;
+            ctx.font = `${Math.max(10, Math.min(15, h * 0.28))}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
 
-            const hot = ctx.createLinearGradient(x, y, x, y + h);
-            hot.addColorStop(0, 'rgba(255, 95, 95, 0.25)');
-            hot.addColorStop(1, 'rgba(0, 0, 0, 0.12)');
-            ctx.fillStyle = hot;
-            ctx.fillRect(x, y, w, h);
+            const padX = Math.max(5, w * 0.16);
+            const padY = Math.max(5, h * 0.22);
 
-            const lightMode = gameState.keyParticles.length > 170;
+            ctx.fillText('🦴', x + padX, y + padY);
+            ctx.fillText('🦴', x + w - padX, y + padY);
+            ctx.fillText('🦴', x + padX, y + h - padY);
+            ctx.fillText('🦴', x + w - padX, y + h - padY);
+            ctx.restore();
+        }
+
+        function drawHeavenPatternOnTile(tile, alpha = 1) {
+            const x = tile.x;
+            const y = tile.y;
+            const w = tile.width;
+            const h = tile.height;
+
+            ctx.save();
+            ctx.globalAlpha *= Math.max(0.32, Math.min(1, alpha));
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.shadowColor = 'rgba(122, 196, 255, 0.24)';
+            ctx.shadowBlur = 0;
+
             const centerX = x + (w * 0.5);
-            const centerY = y + (h * 0.53);
+            const centerY = y + (h * 0.5);
+            const wingSpan = Math.max(4.5, Math.min(8.8, w * 0.24));
+            const wingHeight = Math.max(3.8, Math.min(7.2, h * 0.19));
 
-            function drawBone(x1, y1, x2, y2, thickness = 2.2) {
-                const headRadius = Math.max(1.0, thickness * 0.62);
+            function drawWing(direction) {
+                const baseX = centerX + (direction * Math.max(2.8, w * 0.14));
+                const tipX = baseX + (direction * wingSpan);
+                const topY = centerY - (wingHeight * 0.72);
+                const bottomY = centerY + (wingHeight * 0.78);
 
                 ctx.save();
-                ctx.strokeStyle = lightMode ? 'rgba(248, 245, 238, 0.85)' : 'rgba(255, 251, 241, 0.94)';
-                ctx.lineWidth = thickness;
+                ctx.strokeStyle = 'rgba(184, 223, 248, 0.86)';
+                ctx.lineWidth = 1;
                 ctx.lineCap = 'round';
-                ctx.shadowColor = lightMode ? 'rgba(0, 0, 0, 0)' : 'rgba(255, 132, 85, 0.28)';
-                ctx.shadowBlur = lightMode ? 0 : 5;
+                ctx.lineJoin = 'round';
+
                 ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.lineTo(x2, y2);
+                ctx.moveTo(baseX, centerY - 0.4);
+                ctx.quadraticCurveTo(baseX + (direction * wingSpan * 0.46), topY, tipX, centerY);
+                ctx.quadraticCurveTo(baseX + (direction * wingSpan * 0.46), bottomY, baseX, centerY + 0.4);
                 ctx.stroke();
 
-                ctx.shadowBlur = 0;
-                ctx.fillStyle = lightMode ? 'rgba(242, 238, 228, 0.9)' : 'rgba(255, 251, 241, 0.98)';
-
-                ctx.beginPath();
-                ctx.arc(x1, y1, headRadius, 0, Math.PI * 2);
-                ctx.arc(x1 + (thickness * 0.38), y1 + (thickness * 0.32), headRadius * 0.78, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.beginPath();
-                ctx.arc(x2, y2, headRadius, 0, Math.PI * 2);
-                ctx.arc(x2 - (thickness * 0.38), y2 - (thickness * 0.32), headRadius * 0.78, 0, Math.PI * 2);
-                ctx.fill();
                 ctx.restore();
             }
 
-            ctx.restore();
+            drawWing(-1);
+            drawWing(1);
 
-            // Draw bones outside the tile bounds for a rougher, embedded look.
-            ctx.save();
-            ctx.globalAlpha *= Math.max(0.2, Math.min(1, alpha));
-            const boneLenLong = Math.max(7, Math.min(13, w * 0.62));
-            const boneLenShort = Math.max(6, Math.min(10, w * 0.48));
-            const edgePush = Math.max(1.6, w * 0.11);
-
-            drawBone(
-                x - edgePush,
-                centerY - (h * 0.20),
-                x + boneLenLong,
-                centerY - (h * 0.34),
-                lightMode ? 1.9 : 2.4
-            );
-            drawBone(
-                x - (edgePush * 0.75),
-                centerY + (h * 0.22),
-                x + boneLenShort,
-                centerY + (h * 0.33),
-                lightMode ? 1.75 : 2.2
-            );
-            drawBone(
-                x + w - boneLenLong,
-                centerY - (h * 0.35),
-                x + w + edgePush,
-                centerY - (h * 0.18),
-                lightMode ? 1.9 : 2.4
-            );
-            drawBone(
-                x + w - boneLenShort,
-                centerY + (h * 0.31),
-                x + w + (edgePush * 0.85),
-                centerY + (h * 0.19),
-                lightMode ? 1.75 : 2.2
-            );
-
-            if (!lightMode) {
-                drawBone(
-                    centerX - (w * 0.19),
-                    y + h - (h * 0.08),
-                    centerX + (w * 0.16),
-                    y + h + (h * 0.1),
-                    1.95
-                );
-            }
-
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.shadowColor = 'rgba(255, 72, 72, 0.42)';
-            ctx.shadowBlur = lightMode ? 2 : 7;
-            ctx.font = `${Math.max(13, Math.min(19, h * 0.34))}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
-            ctx.fillStyle = '#ffe8e8';
-            ctx.fillText('💀', centerX, centerY);
-
+            ctx.font = `${Math.max(11, Math.min(16, h * 0.3))}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('🕊️', centerX, centerY);
             ctx.restore();
         }
 
@@ -3574,6 +3603,18 @@
                     rainbowGradient.addColorStop(0.84, `hsl(${(rainbowShift + 260) % 360}, 95%, ${this.hit || this.holding ? '64%' : '56%'})`);
                     rainbowGradient.addColorStop(1.00, `hsl(${(rainbowShift + 312) % 360}, 95%, ${this.hit || this.holding ? '64%' : '57%'})`);
                     ctx.fillStyle = rainbowGradient;
+                } else if (themeIndex === 8 && !this.missed) {
+                    const heavenGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    if (this.hit || this.holding) {
+                        heavenGradient.addColorStop(0, '#ffffff');
+                        heavenGradient.addColorStop(0.56, '#f4fbff');
+                        heavenGradient.addColorStop(1, '#cde9ff');
+                    } else {
+                        heavenGradient.addColorStop(0, '#fbfeff');
+                        heavenGradient.addColorStop(0.56, '#eef8ff');
+                        heavenGradient.addColorStop(1, '#b8ddfb');
+                    }
+                    ctx.fillStyle = heavenGradient;
                 } else {
                     ctx.fillStyle = color;
                 }
@@ -3593,6 +3634,17 @@
 
                 if (!this.missed && themeIndex === 6) {
                     drawHellPatternOnTile(this, this.hit || this.holding ? 0.95 : 0.82);
+                }
+
+                if (!this.missed && themeIndex === 8) {
+                    // Lightweight glow pass to keep Heaven notes bright without heavy blur effects.
+                    ctx.save();
+                    ctx.globalAlpha = alpha * (this.hit || this.holding ? 0.34 : 0.24);
+                    ctx.strokeStyle = this.hit || this.holding ? '#9fd7ff' : '#8ac9f1';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(this.x + 0.5, this.y + 0.5, this.width - 1, this.height - 1);
+                    ctx.restore();
+                    drawHeavenPatternOnTile(this, this.hit || this.holding ? 0.95 : 0.82);
                 }
 
                 if (!this.hit && !this.missed && !this.holding && themeIndex === 0 && !gameState.tutorialMode) {
@@ -3703,6 +3755,7 @@
             const isGalacticTheme = gameState.shop.selectedTheme === 5;
             const isHellTheme = gameState.shop.selectedTheme === 6;
             const isRainbowTheme = gameState.shop.selectedTheme === 7;
+            const isHeavenTheme = gameState.shop.selectedTheme === 8;
 
             if (isWaterfallTheme) {
                 const dropletColors = ['#bfeaff', '#79c8ff', '#2f7fe3'];
@@ -3867,6 +3920,40 @@
                         color: '#ffe2e2',
                         glowColor: '#d93030',
                         particleType: 'hell-skull'
+                    });
+                }
+                return;
+            }
+
+            if (isHeavenTheme) {
+                let existingCloudCount = 0;
+                for (let i = 0; i < gameState.keyParticles.length; i++) {
+                    if (gameState.keyParticles[i].particleType === 'heaven-cloud') {
+                        existingCloudCount++;
+                        if (existingCloudCount > 36) break;
+                    }
+                }
+
+                if (existingCloudCount > 36) return;
+
+                const startY = BAR_Y - (0.5 + Math.random() * 0.8);
+                const cloudCount = existingCloudCount > 24 ? 2 : 3;
+                for (let i = 0; i < cloudCount; i++) {
+                    const spawnX = keyRect.x + (keyRect.width * (0.2 + Math.random() * 0.6));
+                    const life = 16 + Math.floor(Math.random() * 8);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY + (Math.random() * 0.8),
+                        vx: (Math.random() - 0.5) * 0.19,
+                        vy: -(0.26 + Math.random() * 0.34),
+                        gravity: 0.003,
+                        phase: Math.random() * Math.PI * 2,
+                        size: 2.8 + Math.random() * 2.2,
+                        life,
+                        maxLife: life,
+                        color: '#0b0f14',
+                        accentColor: '#ffffff',
+                        particleType: 'heaven-cloud'
                     });
                 }
                 return;
@@ -4041,6 +4128,7 @@
             const isElectricThemeActive = (gameState.shop.selectedTheme | 0) === 3;
             const isHellThemeActive = (gameState.shop.selectedTheme | 0) === 6;
             const isRainbowThemeActive = (gameState.shop.selectedTheme | 0) === 7;
+            const isHeavenThemeActive = (gameState.shop.selectedTheme | 0) === 8;
             const iceEmitInterval = 2;
             for (let column = 0; column < NUM_COLUMNS; column++) {
                 if (!gameState.pressedKeys.has(column)) {
@@ -4055,6 +4143,8 @@
                         gameState.keyParticleEmitTimers[column] = GALACTIC_EMIT_INTERVAL;
                     } else if (isHellThemeActive) {
                         gameState.keyParticleEmitTimers[column] = HELL_EMIT_INTERVAL;
+                    } else if (isHeavenThemeActive) {
+                        gameState.keyParticleEmitTimers[column] = HEAVEN_EMIT_INTERVAL;
                     } else if (isElectricThemeActive) {
                         gameState.keyParticleEmitTimers[column] = ELECTRIC_EMIT_INTERVAL;
                     } else if (isRainbowThemeActive) {
@@ -4155,6 +4245,12 @@
                     particle.vx += Math.sin((particle.age * 0.15) + (particle.phase || 0)) * 0.01;
                     particle.vx *= 0.988;
                     particle.vy += particle.gravity || 0.026;
+                } else if (particle.particleType === 'heaven-cloud') {
+                    particle.age = (particle.age || 0) + 1;
+                    particle.vx += Math.sin((particle.age * 0.12) + (particle.phase || 0)) * 0.004;
+                    particle.vx *= 0.992;
+                    particle.vy += particle.gravity || 0.003;
+                    particle.vy *= 0.988;
                 } else if (particle.particleType === 'rainbow-streak') {
                     particle.age = (particle.age || 0) + 1;
                     particle.wobblePhase = (particle.wobblePhase || 0) + (particle.wobbleSpeed || 0.26);
@@ -4319,6 +4415,46 @@
                         ctx.beginPath();
                         ctx.arc(particle.x, particle.y, 1.2, 0, Math.PI * 2);
                         ctx.fill();
+                    }
+                    continue;
+                }
+
+                if (particle.particleType === 'heaven-cloud') {
+                    const size = particle.size || 2.2;
+                    const baseColor = particle.color || '#0b0f14';
+                    const accentColor = particle.accentColor || '#ffffff';
+
+                    if (highLoadEffects) {
+                        ctx.globalAlpha = Math.min(1, alpha * 0.88);
+                        ctx.fillStyle = baseColor;
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, Math.max(1.2, size * 0.52), 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.globalAlpha = Math.min(1, alpha * 0.78);
+                        ctx.fillStyle = accentColor;
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y - (size * 0.16), Math.max(0.6, size * 0.25), 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        ctx.save();
+                        ctx.globalAlpha = Math.min(1, alpha * 0.86);
+                        ctx.shadowColor = 'rgba(120, 170, 215, 0.45)';
+                        ctx.shadowBlur = 4;
+                        ctx.fillStyle = baseColor;
+                        ctx.beginPath();
+                        ctx.arc(particle.x - (size * 0.48), particle.y + (size * 0.1), size * 0.54, 0, Math.PI * 2);
+                        ctx.arc(particle.x, particle.y - (size * 0.14), size * 0.66, 0, Math.PI * 2);
+                        ctx.arc(particle.x + (size * 0.5), particle.y + (size * 0.12), size * 0.52, 0, Math.PI * 2);
+                        ctx.fill();
+
+                        ctx.globalAlpha = Math.min(1, alpha * 0.92);
+                        ctx.shadowBlur = 0;
+                        ctx.fillStyle = accentColor;
+                        ctx.beginPath();
+                        ctx.arc(particle.x - (size * 0.16), particle.y - (size * 0.22), size * 0.26, 0, Math.PI * 2);
+                        ctx.arc(particle.x + (size * 0.22), particle.y - (size * 0.12), size * 0.2, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
                     }
                     continue;
                 }
@@ -5270,7 +5406,7 @@
                     { name: 'Galactic', icon: '🌌' },
                     { name: 'Hell', icon: '💀' },
                     { name: 'Rainbow', icon: '🌈' },
-                    null
+                    { name: 'Heaven', icon: '😇' }
                 ],
                 background: [],
                 instruments: [
@@ -6230,7 +6366,7 @@
                                 const drumResult = parseMidiFile(drumData);
                                 const travelFrames = getSpawnToBarFrames();
                                 const drumDelayFrames = Math.round(0.1 * FPS);
-                                const drumPitchSet = new Set([23, 26, 35, 36, 38, 40, 41, 42, 44, 46, 49, 51, 55]);
+                                const drumPitchSet = new Set([23, 26, 35, 36, 38, 40, 41, 42, 44, 46, 49, 51, 52, 53, 54, 55, 56, 57, 58, 59]);
                                 const melodyBpm = result.analysis?.bpm || 0;
                                 const drumBpm = drumResult.analysis?.bpm || 0;
                                 const bpmSyncRatio = (melodyBpm > 0 && drumBpm > 0)
