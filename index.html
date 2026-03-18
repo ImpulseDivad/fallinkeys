@@ -499,6 +499,22 @@
             background-position: center, center;
             background-repeat: no-repeat, no-repeat;
         }
+        #levelsOverlay.preview-sadtunnel {
+            background-image:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.7) 100%),
+                url('Images/sad%20tunnel%20image.png');
+            background-size: cover, cover;
+            background-position: center, center;
+            background-repeat: no-repeat, no-repeat;
+        }
+        #levelsOverlay.preview-descend {
+            background-image:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.7) 100%),
+                url('Images/descend%20image.png');
+            background-size: cover, cover;
+            background-position: center, center;
+            background-repeat: no-repeat, no-repeat;
+        }
         
         /* Upload area */
         .upload-area {
@@ -723,87 +739,6 @@
         .rarity-mythic { color: #ff6aa8; }
         .rarity-legendary { color: #ffb347; }
         .rarity-sigma { color: #ffd447; }
-
-        #libraryOverlay {
-            justify-content: flex-start;
-            padding: 16px 0 18px;
-            background:
-                linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.82) 100%),
-                linear-gradient(180deg, #0d1a22 0%, #0f2530 48%, #111e2a 100%);
-            overflow-y: auto;
-        }
-        .library-controls {
-            width: 330px;
-            max-width: calc(100% - 24px);
-            display: flex;
-            gap: 8px;
-            margin-bottom: 8px;
-        }
-        .library-search-input {
-            flex: 1;
-            min-width: 0;
-            padding: 10px 11px;
-            border-radius: 8px;
-            border: 1px solid #4b5f72;
-            background: rgba(13, 20, 28, 0.9);
-            color: #e9f8ff;
-            font-size: 14px;
-            outline: none;
-        }
-        .library-search-input:focus {
-            border-color: #61c8ff;
-            box-shadow: 0 0 0 2px rgba(97, 200, 255, 0.2);
-        }
-        .library-status {
-            width: 330px;
-            max-width: calc(100% - 24px);
-            font-size: 12px;
-            color: #9ec8e3;
-            min-height: 18px;
-            margin-bottom: 6px;
-            text-align: left;
-        }
-        .library-results {
-            width: 330px;
-            max-width: calc(100% - 24px);
-            display: flex;
-            flex-direction: column;
-            gap: 7px;
-            margin-bottom: 8px;
-        }
-        .library-item {
-            border: 1px solid #42607a;
-            background: rgba(14, 24, 35, 0.88);
-            border-radius: 9px;
-            padding: 9px 10px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .library-item-title {
-            flex: 1;
-            min-width: 0;
-            text-align: left;
-            color: #e7f5ff;
-            font-size: 13px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .library-item button {
-            min-width: 82px;
-            margin: 0;
-            padding: 7px 10px;
-            font-size: 12px;
-        }
-        .library-caption {
-            width: 330px;
-            max-width: calc(100% - 24px);
-            color: #7fa4bc;
-            font-size: 11px;
-            margin: 3px 0 10px;
-            text-align: left;
-        }
         
         /* MIDI file input */
         #midiFileInput { display: none; }
@@ -860,21 +795,8 @@
             <h3>Select Mode</h3>
             <button class="button" id="playFreeBtn" onclick="startFreePlay()" onmouseenter="setPlaySelectHint('freeplay')" onmouseleave="clearPlaySelectHint()">Free Play</button>
             <button class="button" id="playTutorialBtn" onclick="startTutorial()" onmouseenter="setPlaySelectHint('tutorial')" onmouseleave="clearPlaySelectHint()">Tutorial</button>
-            <button class="button" id="playLibraryBtn" onclick="showLibraryLevels()" onmouseenter="setPlaySelectHint('library')" onmouseleave="clearPlaySelectHint()">Library Play</button>
             <div id="playSelectHint" class="play-select-hint"></div>
             <button class="button small" onclick="showMenu()">Back</button>
-        </div>
-
-        <div class="overlay hidden" id="libraryOverlay">
-            <h3>BitMidi Library</h3>
-            <div class="library-controls">
-                <input id="librarySearchInput" class="library-search-input" type="text" placeholder="Search songs on BitMidi..." autocomplete="off">
-                <button class="button small" id="librarySearchBtn" onclick="runLibrarySearch()">Search</button>
-            </div>
-            <div id="libraryStatus" class="library-status">Loading catalog...</div>
-            <div id="libraryResults" class="library-results"></div>
-            <p class="library-caption">Source: bitmidi.com sitemap index. Press Download to fetch the MIDI link and start the download.</p>
-            <button class="button small" onclick="closeLibraryLevels()">Back</button>
         </div>
         
         <!-- Levels -->
@@ -900,6 +822,11 @@
                 <span class="hover-subtitle">Seventh chord?</span>
                 <span class="stars" id="level4Stars">&#9734;&#9734;&#9734;</span>
             </button>
+            <button class="button level-btn has-hover-subtitle" id="level5Btn" onclick="startLevel(5)">
+                Level 5: Descend
+                <span class="hover-subtitle">Fast notes, no mercy</span>
+                <span class="stars" id="level5Stars">&#9734;&#9734;&#9734;</span>
+            </button>
             <div class="upload-area" onclick="document.getElementById('midiFileInput').click()">+</div>
             <input type="file" id="midiFileInput" accept=".mid,.midi" onchange="handleMidiUpload(event)">
             <p style="font-size: 12px; color: #888; margin-bottom: 10px;">Upload MIDI file</p>
@@ -919,7 +846,7 @@
                 <div id="luckyBoxPanel" class="lucky-box-panel" onclick="openLuckyBox()">
                     <div>
                         <div class="lucky-box-title">Lucky Box</div>
-                        <div class="lucky-box-subtitle">Tap to open and roll a rarity</div>
+                        <div class="lucky-box-subtitle">Buy for 2 stars and roll a rarity</div>
                     </div>
                     <div class="lucky-box-panel-icon">🎁</div>
                 </div>
@@ -928,10 +855,10 @@
                 <div class="lucky-box-modal hidden" id="luckyBoxModal" onclick="closeLuckyBoxModal()">
                     <div class="lucky-box-modal-card" onclick="event.stopPropagation()">
                         <h4 style="margin-bottom: 10px;">Lucky Box</h4>
-                        <button id="luckyBoxBigButton" class="lucky-box-big" onclick="revealLuckyBoxRarity()" title="Open Lucky Box">🎁</button>
-                        <div id="luckyBoxResult" class="lucky-box-result">Press OPEN below</div>
+                        <button id="luckyBoxBigButton" class="lucky-box-big" onclick="revealLuckyBoxRarity()" title="Buy Lucky Box for 2 stars">🎁</button>
+                        <div id="luckyBoxResult" class="lucky-box-result">Need 2 stars (0/2)</div>
                         <div style="display: flex; gap: 8px; justify-content: center; margin-top: 12px;">
-                            <button id="luckyBoxOpenButton" class="button small" onclick="revealLuckyBoxRarity()">OPEN</button>
+                            <button id="luckyBoxOpenButton" class="button small" onclick="revealLuckyBoxRarity()">BUY FOR 2 STARS</button>
                             <button class="button small" onclick="closeLuckyBoxModal()">Close</button>
                         </div>
                     </div>
@@ -1152,14 +1079,14 @@
                 selectedTheme: 0,
                 selectedBackground: 0,
                 selectedInstrument: 0,
-                luckyBoxLastOpenedMs: 0,
+                spentStars: 0,
                 unlockedThemes: [true, false, false, false, false, false, false, false, false, false, false],
                 unlockedBackgrounds: [true, true, true],
-                unlockedInstruments: [true, true, true, true, true]
+                unlockedInstruments: [true, true, true, true, true, true]
             },
             
             // Level ratings
-            levelRatings: {1: 0, 2: 0, 3: 0, 4: 0},
+            levelRatings: {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
             
             // Tutorial
             tutorialStep: 0,
@@ -1258,8 +1185,7 @@
             // Sigma total: 0.1%
             { themeIndex: 9, name: 'Gold', icon: '👑', rarity: 'sigma', className: 'rarity-sigma', weight: 10 }
         ];
-        const LUCKY_BOX_COOLDOWN_MS = 60 * 60 * 1000;
-        const LUCKY_BOX_STORAGE_KEY = 'fallinkeysLuckyBoxLastOpenMs';
+        const LUCKY_BOX_STAR_COST = 2;
         const LUCKY_BOX_OPEN_ANIMATION_MS = 560;
         const LUCKY_BOX_FLASH_ANIMATION_MS = 300;
         let luckyBoxRevealInProgress = false;
@@ -1416,7 +1342,7 @@
                 return Math.max(45, Math.min(180, midiBpm));
             }
 
-            const levelBpms = { 1: 92, 2: 104, 3: 60 };
+            const levelBpms = { 1: 92, 2: 104, 3: 60, 4: 88, 5: 132 };
             const levelBpm = levelBpms[gameState.currentLevel];
             if (Number.isFinite(levelBpm) && levelBpm > 0) {
                 return levelBpm;
@@ -2112,6 +2038,32 @@
             return 9.0;
         }
 
+        function getFluteBrightness(freq) {
+            if (freq <= 220) return 0.9;
+            if (freq <= 440) return mapRange(freq, 220, 440, 0.9, 1.02);
+            if (freq <= 880) return mapRange(freq, 440, 880, 1.02, 1.18);
+            return 1.24;
+        }
+
+        function getFluteVibratoDepth(freq) {
+            if (freq <= 220) return 7.5;
+            if (freq <= 440) return mapRange(freq, 220, 440, 7.5, 10.5);
+            if (freq <= 880) return mapRange(freq, 440, 880, 10.5, 14.0);
+            return 15.5;
+        }
+
+        function getFluteLowBoost(freq) {
+            if (freq <= 130) return 2.4;
+            if (freq <= 220) return mapRange(freq, 130, 220, 2.4, 1.75);
+            if (freq <= 440) return mapRange(freq, 220, 440, 1.75, 1.15);
+            return 1.0;
+        }
+
+        function getFluteAirBandFreq(freq) {
+            const clamped = Math.min(Math.max(freq, 180), 1760);
+            return mapRange(clamped, 180, 1760, 1400, 2800);
+        }
+
         function getGuitarBodyResonanceFreq(freq) {
             const clamped = Math.min(Math.max(freq, 82), 1175);
             return mapRange(clamped, 82, 1175, 155, 320);
@@ -2250,6 +2202,7 @@
             const mixTrim = getPerNoteMixTrim(column, noteNum);
             const finalGain = rapidGain * mixTrim;
             if (instrument === 4) { playElectricGuitarNote(ctx, freq, duration, finalGain); }
+            else if (instrument === 5) { playFluteNote(ctx, freq, duration, finalGain); }
             else if (instrument === 3) { playGuitarNote(ctx, freq, duration, finalGain); }
             else if (instrument === 2) { playSaxophoneNote(ctx, freq, duration, finalGain); }
             else if (instrument === 1) { playTrumpetNote(ctx, freq, duration, finalGain); }
@@ -2722,6 +2675,101 @@
             reedNoise.stop(stopAt);
         }
 
+        function playFluteNote(ctx, freq, duration, noteGain = 1) {
+            const now = ctx.currentTime;
+            const noteDuration = Math.max(duration, 0.26);
+            const brightness = getFluteBrightness(freq);
+            const fluteLowBoost = getFluteLowBoost(freq);
+            const volume = gameState.settings.volume * getEqualLoudnessGain(freq) * 0.66 * brightness * noteGain * 4.4 * fluteLowBoost;
+            const attackTime = 0.02;
+            const releaseTime = Math.min(Math.max(noteDuration * 0.34, 0.11), 0.22);
+            const releaseStart = now + Math.max(noteDuration - releaseTime, attackTime + 0.1);
+            const endTime = releaseStart + releaseTime;
+
+            const masterGain = ctx.createGain();
+            masterGain.connect(getAudioOutputNode(ctx));
+            const hp = ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.setValueAtTime(180, now);
+            const body = ctx.createBiquadFilter();
+            body.type = 'bandpass';
+            body.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 180), 1760), 180, 1760, 880, 2200), now);
+            body.Q.setValueAtTime(1.0, now);
+            const air = ctx.createBiquadFilter();
+            air.type = 'bandpass';
+            air.frequency.setValueAtTime(getFluteAirBandFreq(freq), now);
+            air.Q.setValueAtTime(0.85, now);
+            const lp = ctx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 180), 1760), 180, 1760, 4500, 7200), now);
+            lp.Q.setValueAtTime(0.65, now);
+            hp.connect(body); body.connect(air); air.connect(lp); lp.connect(masterGain);
+
+            const toneGain = ctx.createGain();
+            toneGain.connect(hp);
+            toneGain.gain.setValueAtTime(0.0001, now);
+            toneGain.gain.linearRampToValueAtTime(volume, now + attackTime);
+            toneGain.gain.linearRampToValueAtTime(volume * 0.86, now + 0.12);
+            toneGain.gain.setValueAtTime(volume * 0.86, releaseStart);
+            toneGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+
+            const oscMain = ctx.createOscillator();
+            const gainMain = ctx.createGain();
+            oscMain.type = 'sine';
+            oscMain.frequency.setValueAtTime(freq, now);
+            gainMain.gain.setValueAtTime(volume * 0.72, now);
+            oscMain.connect(gainMain); gainMain.connect(toneGain);
+
+            const oscOvertone = ctx.createOscillator();
+            const gainOvertone = ctx.createGain();
+            oscOvertone.type = 'sine';
+            oscOvertone.frequency.setValueAtTime(freq * 2, now);
+            gainOvertone.gain.setValueAtTime(volume * 0.2, now);
+            oscOvertone.connect(gainOvertone); gainOvertone.connect(toneGain);
+
+            const vibrato = ctx.createOscillator();
+            vibrato.type = 'sine';
+            vibrato.frequency.setValueAtTime(5.1, now);
+            const vibratoDepth = getFluteVibratoDepth(freq);
+            const vibMain = ctx.createGain();
+            const vibOvertone = ctx.createGain();
+            vibMain.gain.setValueAtTime(0.0001, now);
+            vibMain.gain.linearRampToValueAtTime(vibratoDepth, now + 0.18);
+            vibOvertone.gain.setValueAtTime(0.0001, now);
+            vibOvertone.gain.linearRampToValueAtTime(vibratoDepth * 0.58, now + 0.18);
+            vibrato.connect(vibMain); vibrato.connect(vibOvertone);
+            vibMain.connect(oscMain.detune); vibOvertone.connect(oscOvertone.detune);
+
+            const breath = ctx.createBufferSource();
+            breath.buffer = ensureSaxNoiseBuffer(ctx);
+            breath.loop = true;
+            const breathHP = ctx.createBiquadFilter();
+            breathHP.type = 'highpass';
+            breathHP.frequency.setValueAtTime(620, now);
+            const breathBP = ctx.createBiquadFilter();
+            breathBP.type = 'bandpass';
+            breathBP.frequency.setValueAtTime(getFluteAirBandFreq(freq), now);
+            breathBP.Q.setValueAtTime(0.95, now);
+            const breathGain = ctx.createGain();
+            breathGain.gain.setValueAtTime(0.0001, now);
+            breathGain.gain.linearRampToValueAtTime(volume * 0.085, now + 0.018);
+            breathGain.gain.exponentialRampToValueAtTime(volume * 0.028, now + 0.18);
+            breathGain.gain.setValueAtTime(volume * 0.02, releaseStart);
+            breathGain.gain.exponentialRampToValueAtTime(0.0001, endTime);
+            breath.connect(breathHP); breathHP.connect(breathBP); breathBP.connect(breathGain); breathGain.connect(hp);
+
+            oscMain.start(now);
+            oscOvertone.start(now);
+            vibrato.start(now);
+            breath.start(now);
+
+            const stopAt = endTime + 0.05;
+            oscMain.stop(stopAt);
+            oscOvertone.stop(stopAt);
+            vibrato.stop(stopAt);
+            breath.stop(stopAt);
+        }
+
         function playGuitarNote(ctx, freq, duration, noteGain = 1) {
             const now = ctx.currentTime;
             const noteDuration = Math.max(duration * 1.35, 0.28);
@@ -3133,6 +3181,100 @@
                     masterGain: masterGain,
                     extraGainNodes: [vib1, vib2, noiseGain],
                     extraOscillators: [vibrato, noiseSource]
+                };
+                return;
+            }
+
+            if (instrument === 5) {
+                const brightness = getFluteBrightness(freq);
+                const fluteLowBoost = getFluteLowBoost(freq);
+                const fluteVolume = volume * 0.9 * brightness * 4.4 * fluteLowBoost;
+                const maxHold = Math.min(maxHoldSeconds || 30, 30);
+                const naturalEnd = now + maxHold;
+
+                const masterGain = ctx.createGain();
+                masterGain.connect(getAudioOutputNode(ctx));
+                const hp = ctx.createBiquadFilter();
+                hp.type = 'highpass';
+                hp.frequency.setValueAtTime(180, now);
+                const body = ctx.createBiquadFilter();
+                body.type = 'bandpass';
+                body.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 180), 1760), 180, 1760, 900, 2300), now);
+                body.Q.setValueAtTime(1.02, now);
+                const air = ctx.createBiquadFilter();
+                air.type = 'bandpass';
+                air.frequency.setValueAtTime(getFluteAirBandFreq(freq), now);
+                air.Q.setValueAtTime(0.9, now);
+                const lp = ctx.createBiquadFilter();
+                lp.type = 'lowpass';
+                lp.frequency.setValueAtTime(mapRange(Math.min(Math.max(freq, 180), 1760), 180, 1760, 4500, 7200), now);
+                lp.Q.setValueAtTime(0.65, now);
+                hp.connect(body); body.connect(air); air.connect(lp); lp.connect(masterGain);
+
+                const toneGain = ctx.createGain();
+                toneGain.connect(hp);
+                toneGain.gain.setValueAtTime(0.0001, now);
+                toneGain.gain.linearRampToValueAtTime(fluteVolume, now + 0.03);
+                toneGain.gain.linearRampToValueAtTime(fluteVolume * 0.82, now + 0.16);
+                toneGain.gain.setValueAtTime(fluteVolume * 0.82, naturalEnd - 0.26);
+                toneGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(freq, now);
+                gain1.gain.setValueAtTime(fluteVolume * 0.68, now);
+                osc1.connect(gain1); gain1.connect(toneGain);
+
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(freq * 2, now);
+                gain2.gain.setValueAtTime(fluteVolume * 0.19, now);
+                osc2.connect(gain2); gain2.connect(toneGain);
+
+                const vibrato = ctx.createOscillator();
+                vibrato.type = 'sine';
+                vibrato.frequency.setValueAtTime(5.0, now);
+                const depth = getFluteVibratoDepth(freq);
+                const vib1 = ctx.createGain();
+                const vib2 = ctx.createGain();
+                vib1.gain.setValueAtTime(0.0001, now);
+                vib1.gain.linearRampToValueAtTime(depth, now + 0.24);
+                vib2.gain.setValueAtTime(0.0001, now);
+                vib2.gain.linearRampToValueAtTime(depth * 0.56, now + 0.24);
+                vibrato.connect(vib1); vibrato.connect(vib2);
+                vib1.connect(osc1.detune); vib2.connect(osc2.detune);
+
+                const breath = ctx.createBufferSource();
+                breath.buffer = ensureSaxNoiseBuffer(ctx);
+                breath.loop = true;
+                const breathHP = ctx.createBiquadFilter();
+                breathHP.type = 'highpass';
+                breathHP.frequency.setValueAtTime(620, now);
+                const breathBP = ctx.createBiquadFilter();
+                breathBP.type = 'bandpass';
+                breathBP.frequency.setValueAtTime(getFluteAirBandFreq(freq), now);
+                breathBP.Q.setValueAtTime(0.95, now);
+                const breathGain = ctx.createGain();
+                breathGain.gain.setValueAtTime(0.0001, now);
+                breathGain.gain.linearRampToValueAtTime(fluteVolume * 0.09, now + 0.03);
+                breathGain.gain.exponentialRampToValueAtTime(fluteVolume * 0.025, now + 0.2);
+                breathGain.gain.setValueAtTime(fluteVolume * 0.02, naturalEnd - 0.26);
+                breathGain.gain.exponentialRampToValueAtTime(0.0001, naturalEnd);
+                breath.connect(breathHP); breathHP.connect(breathBP); breathBP.connect(breathGain); breathGain.connect(hp);
+
+                osc1.start(now); osc2.start(now); vibrato.start(now); breath.start(now);
+                osc1.stop(naturalEnd + 0.05); osc2.stop(naturalEnd + 0.05); vibrato.stop(naturalEnd + 0.05); breath.stop(naturalEnd + 0.05);
+
+                gameState.oscillators[voiceKey] = {
+                    oscillator: osc1,
+                    gainNode: toneGain,
+                    osc2: osc2,
+                    gain2: gain2,
+                    masterGain: masterGain,
+                    extraGainNodes: [vib1, vib2, breathGain],
+                    extraOscillators: [vibrato, breath]
                 };
                 return;
             }
@@ -5526,7 +5668,6 @@
             }
 
             if (isElementVisible('playSelectOverlay') ||
-                isElementVisible('libraryOverlay') ||
                 isElementVisible('levelsOverlay') ||
                 isElementVisible('tutorialOverlay') ||
                 isElementVisible('gameOverOverlay') ||
@@ -5558,7 +5699,6 @@
             }
             resetComboDisplay();
             hideElement('playSelectOverlay');
-            hideElement('libraryOverlay');
             hideElement('levelsOverlay');
             hideElement('shopOverlay');
             hideElement('settingsOverlay');
@@ -5588,8 +5728,6 @@
                 hintEl.textContent = 'Freestyle madness: no schedule, pure reflex and combo chasing.';
             } else if (mode === 'tutorial') {
                 hintEl.textContent = 'First run? Start here and become a tile-sniping machine in minutes.';
-            } else if (mode === 'library') {
-                hintEl.textContent = 'Jump into your song library and play built-in levels or uploaded MIDI tracks.';
             } else {
                 hintEl.textContent = '';
             }
@@ -5606,23 +5744,6 @@
             if (!hintEl) return;
             hintEl.classList.remove('active');
             hintEl.textContent = '';
-        }
-
-        function showLibraryLevels() {
-            hideElement('menuOverlay');
-            hideElement('playSelectOverlay');
-            hideElement('levelCompleteOverlay');
-            hideElement('midiAnalysisOverlay');
-            resetMenuInteractionState();
-            drawGame();
-            showElement('libraryOverlay');
-            ensureBitMidiLibraryLoaded();
-        }
-
-        function closeLibraryLevels() {
-            hideElement('libraryOverlay');
-            showElement('playSelectOverlay');
-            clearPlaySelectHint();
         }
 
         function libraryTitleFromPageUrl(url) {
@@ -5970,55 +6091,40 @@
             return !wasUnlocked;
         }
 
-        function setLuckyBoxResultContent(resultEl, drop, wasNewUnlock, cooldownLabel = '') {
+        function setLuckyBoxResultContent(resultEl, drop, wasNewUnlock, footerLabel = '') {
             if (!resultEl || !drop) return;
             const itemLine = `${drop.icon} ${drop.name}`;
             const rarityLine = `<span class="${drop.className}">${drop.rarity.toUpperCase()}</span>`;
             const statusLine = wasNewUnlock
                 ? '<span style="color:#8cff8c; font-size:12px; display:block; margin-top:4px;">NEW THEME UNLOCKED</span>'
                 : '<span style="color:#c0c0c0; font-size:12px; display:block; margin-top:4px;">ALREADY OWNED</span>';
-            const cooldownLine = cooldownLabel
-                ? `<span style="color:#b8b8b8; font-size:11px; display:block; margin-top:4px;">${cooldownLabel}</span>`
+            const footerLine = footerLabel
+                ? `<span style="color:#b8b8b8; font-size:11px; display:block; margin-top:4px;">${footerLabel}</span>`
                 : '';
             resultEl.className = 'lucky-box-result';
-            resultEl.innerHTML = `${itemLine}<br>${rarityLine}${statusLine}${cooldownLine}`;
+            resultEl.innerHTML = `${itemLine}<br>${rarityLine}${statusLine}${footerLine}`;
         }
 
-        function getLuckyBoxLastOpenedMs() {
-            const inMemory = Number(gameState.shop.luckyBoxLastOpenedMs || 0);
-            if (Number.isFinite(inMemory) && inMemory > 0) return inMemory;
-
-            const stored = Number(localStorage.getItem(LUCKY_BOX_STORAGE_KEY) || 0);
-            if (Number.isFinite(stored) && stored > 0) {
-                gameState.shop.luckyBoxLastOpenedMs = stored;
-                return stored;
-            }
-
-            return 0;
+        function getLuckyBoxSpentStars() {
+            const spent = Number(gameState.shop.spentStars || 0);
+            if (!Number.isFinite(spent)) return 0;
+            return Math.max(0, Math.floor(spent));
         }
 
-        function setLuckyBoxLastOpenedMs(timestampMs) {
-            const safeTs = Number(timestampMs) || 0;
-            gameState.shop.luckyBoxLastOpenedMs = safeTs;
-            localStorage.setItem(LUCKY_BOX_STORAGE_KEY, String(safeTs));
+        function setLuckyBoxSpentStars(value) {
+            const safeValue = Number(value) || 0;
+            gameState.shop.spentStars = Math.max(0, Math.floor(safeValue));
         }
 
-        function getLuckyBoxRemainingMs() {
-            const lastOpenedMs = getLuckyBoxLastOpenedMs();
-            if (!lastOpenedMs) return 0;
-            return Math.max(0, (lastOpenedMs + LUCKY_BOX_COOLDOWN_MS) - Date.now());
+        function getLuckyBoxEarnedStars() {
+            return Object.values(gameState.levelRatings || {}).reduce((sum, stars) => {
+                const safeStars = Number(stars) || 0;
+                return sum + Math.max(0, Math.floor(safeStars));
+            }, 0);
         }
 
-        function formatLuckyBoxRemaining(remainingMs) {
-            const totalSeconds = Math.max(0, Math.ceil(remainingMs / 1000));
-            const hours = Math.floor(totalSeconds / 3600);
-            const minutes = Math.floor((totalSeconds % 3600) / 60);
-            const seconds = totalSeconds % 60;
-
-            if (hours > 0) {
-                return `${hours}h ${minutes}m ${seconds}s`;
-            }
-            return `${minutes}m ${seconds}s`;
+        function getLuckyBoxAvailableStars() {
+            return Math.max(0, getLuckyBoxEarnedStars() - getLuckyBoxSpentStars());
         }
 
         function updateLuckyBoxCooldownUi() {
@@ -6027,40 +6133,37 @@
             const bigButton = document.getElementById('luckyBoxBigButton');
             if (!result) return;
 
-            const remainingMs = getLuckyBoxRemainingMs();
-            const canOpen = remainingMs <= 0 && !luckyBoxRevealInProgress;
+            const availableStars = getLuckyBoxAvailableStars();
+            const canOpen = availableStars >= LUCKY_BOX_STAR_COST && !luckyBoxRevealInProgress;
+            const buyLabel = `BUY FOR ${LUCKY_BOX_STAR_COST} STARS`;
 
             if (openButton) {
                 openButton.disabled = !canOpen;
-                openButton.textContent = luckyBoxRevealInProgress ? 'OPENING...' : (canOpen ? 'OPEN' : 'COOLDOWN');
+                openButton.textContent = luckyBoxRevealInProgress ? 'BUYING...' : buyLabel;
             }
             if (bigButton) {
                 bigButton.disabled = !canOpen;
-                bigButton.title = luckyBoxRevealInProgress ? 'Opening Lucky Box' : (canOpen ? 'Open Lucky Box' : 'Lucky Box on cooldown');
+                bigButton.title = luckyBoxRevealInProgress ? 'Buying Lucky Box' : (canOpen ? `Buy Lucky Box for ${LUCKY_BOX_STAR_COST} stars` : `Need ${LUCKY_BOX_STAR_COST} stars`);
             }
 
             if (luckyBoxRevealInProgress) {
                 result.className = 'lucky-box-result';
-                result.textContent = 'Opening...';
+                result.textContent = 'Buying...';
                 return;
             }
 
-            if (canOpen) {
-                luckyBoxLastReward = null;
-                result.className = 'lucky-box-result';
-                result.textContent = 'Press OPEN below';
+            if (luckyBoxLastReward) {
+                setLuckyBoxResultContent(
+                    result,
+                    luckyBoxLastReward.drop,
+                    luckyBoxLastReward.wasNewUnlock,
+                    `${availableStars} stars left`
+                );
             } else {
-                if (luckyBoxLastReward) {
-                    setLuckyBoxResultContent(
-                        result,
-                        luckyBoxLastReward.drop,
-                        luckyBoxLastReward.wasNewUnlock,
-                        `Ready in ${formatLuckyBoxRemaining(remainingMs)}`
-                    );
-                } else {
-                    result.className = 'lucky-box-result';
-                    result.textContent = `Ready in ${formatLuckyBoxRemaining(remainingMs)}`;
-                }
+                result.className = 'lucky-box-result';
+                result.textContent = canOpen
+                    ? `${availableStars} stars available`
+                    : `Need ${LUCKY_BOX_STAR_COST} stars (${availableStars}/${LUCKY_BOX_STAR_COST})`;
             }
         }
 
@@ -6069,11 +6172,13 @@
             if (!result) return;
             if (luckyBoxRevealInProgress) return;
 
-            const remainingMs = getLuckyBoxRemainingMs();
-            if (remainingMs > 0) {
+            const availableStars = getLuckyBoxAvailableStars();
+            if (availableStars < LUCKY_BOX_STAR_COST) {
                 updateLuckyBoxCooldownUi();
                 return;
             }
+
+            setLuckyBoxSpentStars(getLuckyBoxSpentStars() + LUCKY_BOX_STAR_COST);
 
             const drop = rollLuckyBoxThemeDrop();
             const openButton = document.getElementById('luckyBoxOpenButton');
@@ -6084,7 +6189,7 @@
             clearLuckyBoxAnimationTimers();
             if (openButton) {
                 openButton.disabled = true;
-                openButton.textContent = 'OPENING...';
+                openButton.textContent = 'BUYING...';
             }
             if (bigButton) {
                 bigButton.disabled = true;
@@ -6094,7 +6199,7 @@
             }
 
             result.className = 'lucky-box-result';
-            result.textContent = 'Opening...';
+            result.textContent = 'Buying...';
 
             const flashTimer = setTimeout(() => {
                 if (!card) return;
@@ -6111,12 +6216,8 @@
 
                 const wasNewUnlock = unlockThemeFromLuckyBox(drop.themeIndex);
                 luckyBoxLastReward = { drop, wasNewUnlock };
-                setLuckyBoxResultContent(result, drop, wasNewUnlock);
-                setLuckyBoxLastOpenedMs(Date.now());
+                setLuckyBoxResultContent(result, drop, wasNewUnlock, `${getLuckyBoxAvailableStars()} stars left`);
                 luckyBoxRevealInProgress = false;
-                if (isElementVisible('shopOverlay')) {
-                    switchShopTab('themes');
-                }
                 updateLuckyBoxCooldownUi();
             }, LUCKY_BOX_OPEN_ANIMATION_MS + LUCKY_BOX_FLASH_ANIMATION_MS + 50);
             luckyBoxAnimationTimers.push(revealTimer);
@@ -6172,7 +6273,7 @@
         }
         
         function updateLevelStars() {
-            for (let i = 1; i <= 4; i++) {
+            for (let i = 1; i <= 5; i++) {
                 const stars = gameState.levelRatings[i] || 0;
                 const el = document.getElementById(`level${i}Stars`);
                 if (!el) continue;
@@ -6184,13 +6285,17 @@
             const overlay = document.getElementById('levelsOverlay');
             if (!overlay) return;
 
-            overlay.classList.remove('preview-sunrise', 'preview-greenhills', 'preview-hades');
+            overlay.classList.remove('preview-sunrise', 'preview-greenhills', 'preview-hades', 'preview-sadtunnel', 'preview-descend');
             if (previewName === 'sunrise') {
                 overlay.classList.add('preview-sunrise');
             } else if (previewName === 'greenhills') {
                 overlay.classList.add('preview-greenhills');
             } else if (previewName === 'hades') {
                 overlay.classList.add('preview-hades');
+            } else if (previewName === 'sadtunnel') {
+                overlay.classList.add('preview-sadtunnel');
+            } else if (previewName === 'descend') {
+                overlay.classList.add('preview-descend');
             }
         }
 
@@ -6199,6 +6304,7 @@
             const levelTwoButton = document.getElementById('level2Btn');
             const levelThreeButton = document.getElementById('level3Btn');
             const levelFourButton = document.getElementById('level4Btn');
+            const levelFiveButton = document.getElementById('level5Btn');
             const levelsOverlay = document.getElementById('levelsOverlay');
 
             if (!levelOneButton || !levelTwoButton || !levelThreeButton || !levelsOverlay) return;
@@ -6212,14 +6318,22 @@
             levelThreeButton.addEventListener('mouseenter', () => setLevelMenuPreview('hades'));
             levelThreeButton.addEventListener('focus', () => setLevelMenuPreview('hades'));
 
+            if (levelFourButton) levelFourButton.addEventListener('mouseenter', () => setLevelMenuPreview('sadtunnel'));
+            if (levelFourButton) levelFourButton.addEventListener('focus', () => setLevelMenuPreview('sadtunnel'));
+
+            if (levelFiveButton) levelFiveButton.addEventListener('mouseenter', () => setLevelMenuPreview('descend'));
+            if (levelFiveButton) levelFiveButton.addEventListener('focus', () => setLevelMenuPreview('descend'));
+
             levelOneButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelThreeButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             if (levelFourButton) levelFourButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
+            if (levelFiveButton) levelFiveButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelOneButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelThreeButton.addEventListener('blur', () => setLevelMenuPreview(null));
             if (levelFourButton) levelFourButton.addEventListener('blur', () => setLevelMenuPreview(null));
+            if (levelFiveButton) levelFiveButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelsOverlay.addEventListener('mouseleave', () => setLevelMenuPreview(null));
         }
 
@@ -6231,7 +6345,9 @@
                 'Images/green%20hills.png',
                 'Images/green hills.png',
                 'Images/hades%20desert.png',
-                'Images/hades desert.png'
+                'Images/hades desert.png',
+                'Images/sad%20tunnel%20image.png',
+                'Images/descend%20image.png'
             ];
 
             for (const source of previewSources) {
@@ -6255,7 +6371,8 @@
                 1: [62, 66, 69, 74],
                 2: [57, 60, 64, 67],
                 3: [52, 55, 59, 64],
-                4: [47, 50, 54, 59]
+                4: [47, 50, 54, 59],
+                5: [72, 76, 79, 84]
             };
 
             const notes = fallbackByInstrument[index] || fallbackByInstrument[0];
@@ -6409,7 +6526,8 @@
                     { name: 'Trompet', icon: '🎺' },
                     { name: 'Saxofoon', icon: '🎷' },
                     { name: 'Akoestische gitaar', icon: '🎸' },
-                    { name: 'Elektrische gitaar', icon: '🎸' }
+                    { name: 'Elektrische gitaar', icon: '🎸' },
+                    { name: 'Fluit', icon: '🎶' }
                 ]
             };
             
@@ -7335,14 +7453,16 @@
                 2: ['Green Hills.mid'],
                 // Keep legacy names, but prefer explicit renamed files first.
                 3: ['Hades Desert (2).mid', 'Hades Desert.mid', 'hades desert.mid', 'Hades Desert.midi'],
-                4: ['Sad Tunnel.mid', 'sad tunnel.mid', 'Sad Tunnel.midi']
+                4: ['Sad Tunnel.mid', 'sad tunnel.mid', 'Sad Tunnel.midi'],
+                5: ['Descend.mid', 'descend.mid', 'Descend.midi', 'Time Rush.mid', 'time rush.mid', 'Time Rush.midi']
             };
 
             const levelDrumBaseFileNames = {
                 1: ['sunrise drums.mid'],
                 2: ['green hills drums.mid'],
                 3: ['hades desert drums (2).mid', 'hades desert drums.mid', 'Hades Desert Drums.mid', 'hades desert drums.midi'],
-                4: ['sad tunnel drums.mid', 'Sad Tunnel Drums.mid', 'sad tunnel drums.midi']
+                4: ['sad tunnel drums.mid', 'Sad Tunnel Drums.mid', 'sad tunnel drums.midi'],
+                5: ['descend drums.mid', 'Descend Drums.mid', 'descend drums.midi', 'time rush drums.mid', 'Time Rush Drums.mid', 'time rush drums.midi']
             };
             
             const levelFileNameCandidates = buildMidiCandidatesFromBaseNames(levelBaseFileNames[levelNum], 12);
@@ -7455,16 +7575,33 @@
         
         function generateLevelPattern(level) {
             const notes = [];
-            const duration = level === 1 ? 30 : 45; // seconds
-            const density = level === 1 ? 1.5 : 2; // notes per second
+            const durationByLevel = {
+                1: 30,
+                2: 42,
+                3: 48,
+                4: 50,
+                5: 58
+            };
+            const densityByLevel = {
+                1: 1.5,
+                2: 2.0,
+                3: 2.2,
+                4: 2.4,
+                5: 3.2
+            };
+            const duration = durationByLevel[level] || 45; // seconds
+            const density = densityByLevel[level] || 2; // notes per second
             
             // Simple melody pattern
             const melodies = {
                 1: [0, 2, 4, 5, 7, 5, 4, 2], // C D E F G F E D
-                2: [0, 4, 7, 4, 2, 5, 9, 5, 4, 7, 11, 7] // More complex
+                2: [0, 4, 7, 4, 2, 5, 9, 5, 4, 7, 11, 7],
+                3: [0, 3, 5, 7, 10, 7, 5, 3],
+                4: [2, 5, 9, 5, 0, 4, 7, 4, 11, 7, 4, 2],
+                5: [0, 2, 4, 7, 11, 9, 7, 4, 2, 4, 7, 9, 11, 12, 11, 9]
             };
             
-            const melody = melodies[level];
+            const melody = melodies[level] || melodies[2];
             let time = 2000; // Start after 2 seconds
             
             for (let i = 0; i < duration * density; i++) {
@@ -8374,7 +8511,7 @@
                 target.tagName === 'TEXTAREA' ||
                 target.isContentEditable
             ));
-            const blockGameplayKeyCapture = isElementVisible('libraryOverlay') || isTextInputTarget;
+            const blockGameplayKeyCapture = isTextInputTarget;
 
             // Get column from key (try e.code first, then fallback to keyCode)
             const column = getColumnFromKeyboardEvent(e);
@@ -8423,7 +8560,6 @@
         });
         
         document.addEventListener('keyup', (e) => {
-            if (isElementVisible('libraryOverlay')) return;
             const column = getColumnFromKeyboardEvent(e);
             
             if (column !== undefined) {
