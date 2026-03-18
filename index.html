@@ -103,7 +103,7 @@
             opacity: 0.42;
         }
         .side-wave-bar.wave {
-            animation: sideWavePulse 380ms cubic-bezier(0.2, 0.75, 0.2, 1);
+            animation: sideWavePulse 560ms cubic-bezier(0.2, 0.75, 0.2, 1);
             animation-delay: var(--delay-ms, 0ms);
             will-change: transform, opacity;
         }
@@ -122,8 +122,8 @@
                 opacity: 0.88;
             }
             100% {
-                transform: scaleY(var(--base-scale, 0.02));
-                opacity: 0.68;
+                transform: scaleY(0);
+                opacity: 0;
             }
         }
         #gameContainer {
@@ -160,6 +160,26 @@
         .overlay h1 { font-size: 36px; margin-bottom: 30px; color: #ffff00; text-shadow: 0 0 20px rgba(255,255,0,0.5); }
         .overlay h2 { font-size: 28px; margin-bottom: 20px; color: #ff4444; }
         .overlay h3 { font-size: 22px; margin-bottom: 15px; color: #00aaff; }
+        .play-select-hint {
+            min-height: 52px;
+            max-width: 320px;
+            margin: 8px 20px 4px;
+            padding: 10px 12px;
+            border: 1px solid rgba(126, 216, 255, 0.45);
+            border-radius: 8px;
+            background: rgba(10, 24, 34, 0.56);
+            color: #bfe9ff;
+            font-size: 13px;
+            line-height: 1.35;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(3px);
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+        .play-select-hint.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
         
         /* Buttons */
         .button {
@@ -178,6 +198,16 @@
         .button:active { transform: scale(0.98); }
         .button.small { padding: 8px 20px; font-size: 14px; min-width: 100px; }
         .button.pause-btn { min-width: 200px; }
+        .button.tutorial-highlight {
+            border-color: #ffe26a;
+            box-shadow: 0 0 0 2px rgba(255, 226, 106, 0.35), 0 0 18px rgba(255, 226, 106, 0.55);
+            animation: tutorialPulse 1s ease-in-out infinite;
+        }
+        @keyframes tutorialPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.04); }
+            100% { transform: scale(1); }
+        }
         .button.active { background: linear-gradient(180deg, #0066cc 0%, #004499 100%); border-color: #00aaff; }
         .button:disabled { opacity: 0.5; cursor: not-allowed; }
         
@@ -282,6 +312,7 @@
         #judgementDisplay.perfect { color: #00ffff; }
         #judgementDisplay.great { color: #00ff00; }
         #judgementDisplay.allright { color: #ffaa00; }
+        #judgementDisplay.oof { color: #ff3b3b; }
         
         /* Countdown overlay */
         #countdownOverlay {
@@ -386,6 +417,27 @@
             margin: 10px 0;
             text-align: left;
             position: relative;
+        }
+        .level-btn.has-hover-subtitle {
+            padding-bottom: 26px;
+        }
+        .level-btn .hover-subtitle {
+            position: absolute;
+            left: 15px;
+            bottom: 7px;
+            font-size: 11px;
+            color: #d8f2ff;
+            opacity: 0;
+            transform: translateY(2px);
+            transition: opacity 0.18s ease, transform 0.18s ease;
+            pointer-events: none;
+            text-shadow: 0 0 8px rgba(0, 170, 255, 0.35);
+        }
+        .level-btn.has-hover-subtitle:hover .hover-subtitle,
+        .level-btn.has-hover-subtitle:focus .hover-subtitle,
+        .level-btn.has-hover-subtitle:focus-visible .hover-subtitle {
+            opacity: 1;
+            transform: translateY(0);
         }
         .level-btn .stars {
             position: absolute;
@@ -666,10 +718,92 @@
             font-weight: 800;
             letter-spacing: 0.6px;
         }
-        .rarity-allright { color: #ff9a2f; }
-        .rarity-great { color: #4da6ff; }
+        .rarity-rare { color: #6ab7ff; }
         .rarity-epic { color: #b86cff; }
+        .rarity-mythic { color: #ff6aa8; }
+        .rarity-legendary { color: #ffb347; }
         .rarity-sigma { color: #ffd447; }
+
+        #libraryOverlay {
+            justify-content: flex-start;
+            padding: 16px 0 18px;
+            background:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0.82) 100%),
+                linear-gradient(180deg, #0d1a22 0%, #0f2530 48%, #111e2a 100%);
+            overflow-y: auto;
+        }
+        .library-controls {
+            width: 330px;
+            max-width: calc(100% - 24px);
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .library-search-input {
+            flex: 1;
+            min-width: 0;
+            padding: 10px 11px;
+            border-radius: 8px;
+            border: 1px solid #4b5f72;
+            background: rgba(13, 20, 28, 0.9);
+            color: #e9f8ff;
+            font-size: 14px;
+            outline: none;
+        }
+        .library-search-input:focus {
+            border-color: #61c8ff;
+            box-shadow: 0 0 0 2px rgba(97, 200, 255, 0.2);
+        }
+        .library-status {
+            width: 330px;
+            max-width: calc(100% - 24px);
+            font-size: 12px;
+            color: #9ec8e3;
+            min-height: 18px;
+            margin-bottom: 6px;
+            text-align: left;
+        }
+        .library-results {
+            width: 330px;
+            max-width: calc(100% - 24px);
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            margin-bottom: 8px;
+        }
+        .library-item {
+            border: 1px solid #42607a;
+            background: rgba(14, 24, 35, 0.88);
+            border-radius: 9px;
+            padding: 9px 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .library-item-title {
+            flex: 1;
+            min-width: 0;
+            text-align: left;
+            color: #e7f5ff;
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .library-item button {
+            min-width: 82px;
+            margin: 0;
+            padding: 7px 10px;
+            font-size: 12px;
+        }
+        .library-caption {
+            width: 330px;
+            max-width: calc(100% - 24px);
+            color: #7fa4bc;
+            font-size: 11px;
+            margin: 3px 0 10px;
+            text-align: left;
+        }
         
         /* MIDI file input */
         #midiFileInput { display: none; }
@@ -724,28 +858,46 @@
         <!-- Play Select -->
         <div class="overlay hidden" id="playSelectOverlay">
             <h3>Select Mode</h3>
-            <button class="button" onclick="startFreePlay()">Free Play</button>
-            <button class="button" onclick="startTutorial()">Tutorial</button>
+            <button class="button" id="playFreeBtn" onclick="startFreePlay()" onmouseenter="setPlaySelectHint('freeplay')" onmouseleave="clearPlaySelectHint()">Free Play</button>
+            <button class="button" id="playTutorialBtn" onclick="startTutorial()" onmouseenter="setPlaySelectHint('tutorial')" onmouseleave="clearPlaySelectHint()">Tutorial</button>
+            <button class="button" id="playLibraryBtn" onclick="showLibraryLevels()" onmouseenter="setPlaySelectHint('library')" onmouseleave="clearPlaySelectHint()">Library Play</button>
+            <div id="playSelectHint" class="play-select-hint"></div>
             <button class="button small" onclick="showMenu()">Back</button>
+        </div>
+
+        <div class="overlay hidden" id="libraryOverlay">
+            <h3>BitMidi Library</h3>
+            <div class="library-controls">
+                <input id="librarySearchInput" class="library-search-input" type="text" placeholder="Search songs on BitMidi..." autocomplete="off">
+                <button class="button small" id="librarySearchBtn" onclick="runLibrarySearch()">Search</button>
+            </div>
+            <div id="libraryStatus" class="library-status">Loading catalog...</div>
+            <div id="libraryResults" class="library-results"></div>
+            <p class="library-caption">Source: bitmidi.com sitemap index. Press Download to fetch the MIDI link and start the download.</p>
+            <button class="button small" onclick="closeLibraryLevels()">Back</button>
         </div>
         
         <!-- Levels -->
         <div class="overlay hidden" id="levelsOverlay">
             <h3>Levels</h3>
-            <button class="button level-btn" id="level1Btn" onclick="startLevel(1)">
+            <button class="button level-btn has-hover-subtitle" id="level1Btn" onclick="startLevel(1)">
                 Level 1: Sunrise
+                <span class="hover-subtitle">Nice beginner level</span>
                 <span class="stars" id="level1Stars">&#9734;&#9734;&#9734;</span>
             </button>
-            <button class="button level-btn" id="level2Btn" onclick="startLevel(2)">
+            <button class="button level-btn has-hover-subtitle" id="level2Btn" onclick="startLevel(2)">
                 Level 2: Green Hills
+                <span class="hover-subtitle">Peaceful ah hills</span>
                 <span class="stars" id="level2Stars">&#9734;&#9734;&#9734;</span>
             </button>
-            <button class="button level-btn" id="level3Btn" onclick="startLevel(3)">
+            <button class="button level-btn has-hover-subtitle" id="level3Btn" onclick="startLevel(3)">
                 Level 3: Hades Desert
+                <span class="hover-subtitle">Little bit harder</span>
                 <span class="stars" id="level3Stars">&#9734;&#9734;&#9734;</span>
             </button>
-            <button class="button level-btn" id="level4Btn" onclick="startLevel(4)">
+            <button class="button level-btn has-hover-subtitle" id="level4Btn" onclick="startLevel(4)">
                 Level 4: Sad Tunnel
+                <span class="hover-subtitle">Seventh chord?</span>
                 <span class="stars" id="level4Stars">&#9734;&#9734;&#9734;</span>
             </button>
             <div class="upload-area" onclick="document.getElementById('midiFileInput').click()">+</div>
@@ -806,7 +958,7 @@
             <h3>PAUSED</h3>
             <button class="button pause-btn" onclick="resumeGame()">Continue</button>
             <button class="button pause-btn" onclick="showShopFromPause()">Shop</button>
-            <button class="button pause-btn" onclick="showSettingsFromPause()">Settings</button>
+            <button class="button pause-btn" id="pauseSettingsBtn" onclick="showSettingsFromPause()">Settings</button>
             <button class="button pause-btn" onclick="returnToMenu()">Return to Menu</button>
         </div>
         
@@ -890,7 +1042,9 @@
         const GALACTIC_EMIT_INTERVAL = 2;
         const ELECTRIC_EMIT_INTERVAL = 12; // ~5 emits/sec at 60 FPS
         const HELL_EMIT_INTERVAL = 10;
-        const HEAVEN_EMIT_INTERVAL = 14;
+        const HEAVEN_EMIT_INTERVAL = 22;
+        const GOLD_EMIT_INTERVAL = 4;
+        const GOLD_PARTICLE_SOFT_CAP = 56;
         const RAINBOW_EMIT_INTERVAL = 3;
         const GALACTIC_DETAIL_PARTICLE_THRESHOLD = 120;
         const ICE_PARTICLE_SOFT_CAP = 70;
@@ -987,6 +1141,7 @@
                 easyHoldEnabled: false,
                 blueHitEnabled: true,
                 waveDisabled: false,
+                performanceModeEnabled: false,
                 soundEnabled: true,
                 volume: 0.5,
                 metronomeEnabled: false
@@ -998,7 +1153,7 @@
                 selectedBackground: 0,
                 selectedInstrument: 0,
                 luckyBoxLastOpenedMs: 0,
-                unlockedThemes: [true, true, true, true, true, true, true, true, true],
+                unlockedThemes: [true, false, false, false, false, false, false, false, false, false, false],
                 unlockedBackgrounds: [true, true, true],
                 unlockedInstruments: [true, true, true, true, true]
             },
@@ -1011,6 +1166,8 @@
             tutorialMode: false,
             tutorialOverlayActive: false,
             tutorialFallingPromptDone: false,
+            tutorialAwaitEsc: false,
+            tutorialAwaitSettingsClick: false,
             
             // Hold notes
             activeHolds: {},
@@ -1076,17 +1233,30 @@
             nextLayerIndex: 0,
             activeBursts: 0,
             holdLayerIndex: -1,
+            holdReleaseTimer: null,
             idleAnimationFrame: null,
             lastTriggerTime: 0,
+            lastTriggerBucket: -1,
             idleLastHidden: false,
             idleLastTickMs: 0
         };
 
-        const LUCKY_BOX_RARITIES = [
-            { name: 'allright', className: 'rarity-allright', weight: 48 },
-            { name: 'great', className: 'rarity-great', weight: 32 },
-            { name: 'epic', className: 'rarity-epic', weight: 15 },
-            { name: 'sigma', className: 'rarity-sigma', weight: 5 }
+        const LUCKY_BOX_THEME_DROPS = [
+            // Rare total: 65%
+            { themeIndex: 1, name: 'Waterfall', icon: '🌊', rarity: 'rare', className: 'rarity-rare', weight: 3250 },
+            { themeIndex: 2, name: 'Vulcano', icon: '🌋', rarity: 'rare', className: 'rarity-rare', weight: 3250 },
+            // Epic total: 25%
+            { themeIndex: 3, name: 'Electric', icon: '⚡', rarity: 'epic', className: 'rarity-epic', weight: 834 },
+            { themeIndex: 4, name: 'Ice', icon: '❄️', rarity: 'epic', className: 'rarity-epic', weight: 833 },
+            { themeIndex: 5, name: 'Plants', icon: '🌿', rarity: 'epic', className: 'rarity-epic', weight: 833 },
+            // Mythic total: 8%
+            { themeIndex: 6, name: 'Hell', icon: '💀', rarity: 'mythic', className: 'rarity-mythic', weight: 267 },
+            { themeIndex: 7, name: 'Galactic', icon: '🌌', rarity: 'mythic', className: 'rarity-mythic', weight: 267 },
+            { themeIndex: 8, name: 'Heaven', icon: '😇', rarity: 'mythic', className: 'rarity-mythic', weight: 266 },
+            // Legendary total: 1.9%
+            { themeIndex: 10, name: 'Rainbow', icon: '🌈', rarity: 'legendary', className: 'rarity-legendary', weight: 190 },
+            // Sigma total: 0.1%
+            { themeIndex: 9, name: 'Gold', icon: '👑', rarity: 'sigma', className: 'rarity-sigma', weight: 10 }
         ];
         const LUCKY_BOX_COOLDOWN_MS = 60 * 60 * 1000;
         const LUCKY_BOX_STORAGE_KEY = 'fallinkeysLuckyBoxLastOpenMs';
@@ -1094,9 +1264,30 @@
         const LUCKY_BOX_FLASH_ANIMATION_MS = 300;
         let luckyBoxRevealInProgress = false;
         let luckyBoxAnimationTimers = [];
+        let luckyBoxLastReward = null;
+
+        const BITMIDI_SITEMAP_INDEX_URL = 'https://bitmidi.com/sitemap.xml';
+        const BITMIDI_FALLBACK_SITEMAPS = [
+            'https://bitmidi.com/sitemap-0.xml',
+            'https://bitmidi.com/sitemap-1.xml',
+            'https://bitmidi.com/sitemap-2.xml'
+        ];
+        const LIBRARY_MAX_RESULTS = 60;
+        const bitMidiLibraryState = {
+            loading: false,
+            loaded: false,
+            entries: [],
+            filteredEntries: [],
+            query: '',
+            error: ''
+        };
 
         const SIDE_WAVE_IDLE_FPS = 45;
         const SIDE_WAVE_IDLE_FRAME_MS = 1000 / SIDE_WAVE_IDLE_FPS;
+        const SIDE_WAVE_HOLD_FREEZE_DELAY_MS = 160;
+        const SIDE_WAVE_HOLD_RELEASE_MS = 260;
+        const SIDE_WAVE_SAME_LANE_RETRIGGER_MS = 28;
+        const SIDE_WAVE_TRIGGER_BUCKETS = 24;
 
         const INSTRUMENT_PREVIEW_SFX_MAP = {
             0: ['SFX/e-piano click fx.mid'],
@@ -1146,6 +1337,7 @@
             sideWaveState.nextLayerIndex = 0;
             sideWaveState.activeBursts = 0;
             sideWaveState.lastTriggerTime = 0;
+            sideWaveState.lastTriggerBucket = -1;
             sideWaveState.idleLastHidden = false;
             sideWaveState.idleLastTickMs = 0;
             sideWaveLeftEl.classList.remove('active');
@@ -1179,7 +1371,7 @@
                 sideWaveState.idleAlphaCache.push(-1);
             }
 
-            const layerCount = 2;
+            const layerCount = 4;
             for (let layerIndex = 0; layerIndex < layerCount; layerIndex++) {
                 const leftLayer = document.createElement('div');
                 const rightLayer = document.createElement('div');
@@ -1208,8 +1400,10 @@
                     leftBars,
                     rightBars,
                     hideTimer: null,
+                    holdFreezeTimer: null,
                     holdStartIndex: -1,
-                    holdEndIndex: -1
+                    holdEndIndex: -1,
+                    holdScaleByIndex: []
                 });
             }
 
@@ -1261,12 +1455,13 @@
                         barMid: 'rgba(188, 233, 255, 0.62)',
                         barBottom: 'rgba(129, 206, 255, 0.44)'
                     };
-                case 5: // Galactic
+                case 5: // Plants
                     return {
-                        panelRgb: '174, 114, 255',
-                        barTop: 'rgba(176, 115, 255, 0.82)',
-                        barMid: 'rgba(208, 118, 237, 0.6)',
-                        barBottom: 'rgba(255, 127, 211, 0.46)'
+                        panelRgb: '72, 168, 86',
+                        barTop: 'rgba(181, 246, 161, 0.88)',
+                        barMid: 'rgba(96, 189, 102, 0.66)',
+                        barBottom: 'rgba(22, 88, 34, 0.54)',
+                        barGradient: 'linear-gradient(180deg, rgba(188, 248, 170, 0.9) 0%, rgba(98, 194, 106, 0.7) 56%, rgba(20, 84, 33, 0.58) 100%)'
                     };
                 case 6: // Hell
                     return {
@@ -1275,13 +1470,12 @@
                         barMid: 'rgba(170, 24, 24, 0.64)',
                         barBottom: 'rgba(22, 6, 6, 0.52)'
                     };
-                case 7: // Rainbow
+                case 7: // Galactic
                     return {
-                        panelRgb: '196, 138, 255',
-                        barTop: 'rgba(255, 107, 107, 0.84)',
-                        barMid: 'rgba(79, 206, 255, 0.62)',
-                        barBottom: 'rgba(150, 114, 255, 0.46)',
-                        barGradient: 'linear-gradient(180deg, rgba(255, 77, 77, 0.86) 0%, rgba(255, 146, 62, 0.84) 16%, rgba(255, 232, 79, 0.82) 32%, rgba(116, 240, 108, 0.8) 50%, rgba(79, 220, 255, 0.78) 66%, rgba(88, 136, 255, 0.76) 82%, rgba(180, 109, 255, 0.74) 100%)'
+                        panelRgb: '174, 114, 255',
+                        barTop: 'rgba(176, 115, 255, 0.82)',
+                        barMid: 'rgba(208, 118, 237, 0.6)',
+                        barBottom: 'rgba(255, 127, 211, 0.46)'
                     };
                 case 8: // Heaven
                     return {
@@ -1290,6 +1484,22 @@
                         barMid: 'rgba(206, 233, 255, 0.72)',
                         barBottom: 'rgba(154, 202, 242, 0.52)',
                         barGradient: 'linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(225, 241, 255, 0.84) 52%, rgba(171, 209, 242, 0.62) 100%)'
+                    };
+                case 9: // Gold
+                    return {
+                        panelRgb: '246, 196, 61',
+                        barTop: 'rgba(255, 243, 181, 0.94)',
+                        barMid: 'rgba(255, 208, 90, 0.78)',
+                        barBottom: 'rgba(185, 121, 20, 0.58)',
+                        barGradient: 'linear-gradient(180deg, rgba(255, 245, 188, 0.96) 0%, rgba(255, 214, 96, 0.86) 56%, rgba(194, 126, 26, 0.64) 100%)'
+                    };
+                case 10: // Rainbow
+                    return {
+                        panelRgb: '196, 138, 255',
+                        barTop: 'rgba(255, 107, 107, 0.84)',
+                        barMid: 'rgba(79, 206, 255, 0.62)',
+                        barBottom: 'rgba(150, 114, 255, 0.46)',
+                        barGradient: 'linear-gradient(180deg, rgba(255, 77, 77, 0.86) 0%, rgba(255, 146, 62, 0.84) 16%, rgba(255, 232, 79, 0.82) 32%, rgba(116, 240, 108, 0.8) 50%, rgba(79, 220, 255, 0.78) 66%, rgba(88, 136, 255, 0.76) 82%, rgba(180, 109, 255, 0.74) 100%)'
                     };
                 default: // Default
                     return {
@@ -1327,7 +1537,59 @@
             return gameState.pressedKeys.size > 0 || gameState.midiNotesCurrentlyPressed.size > 0;
         }
 
-        function clearSideWaveHoldVisual() {
+        function hasPersistentWaveInput() {
+            return hasActiveWaveInput()
+                || Object.keys(gameState.activeHolds || {}).length > 0
+                || gameState.sustainedMidiNotes.size > 0;
+        }
+
+        function isWaveRuntimeDisabled() {
+            return !!gameState.settings.waveDisabled || !!gameState.settings.performanceModeEnabled;
+        }
+
+        function clearSideWaveHoldVisual(animateDown = false) {
+            if (sideWaveState.holdReleaseTimer) {
+                clearTimeout(sideWaveState.holdReleaseTimer);
+                sideWaveState.holdReleaseTimer = null;
+            }
+
+            if (animateDown) {
+                for (let i = 0; i < sideWaveState.layers.length; i++) {
+                    const layer = sideWaveState.layers[i];
+                    if (!layer) continue;
+                    const barsCount = Math.max(layer.leftBars.length, layer.rightBars.length);
+                    for (let j = 0; j < barsCount; j++) {
+                        const leftBar = layer.leftBars[j];
+                        const rightBar = layer.rightBars[j];
+                        if (leftBar && leftBar.classList.contains('hold')) {
+                            leftBar.style.setProperty('--hold-scale', '0');
+                            leftBar.style.setProperty('--hold-alpha', '0');
+                        }
+                        if (rightBar && rightBar.classList.contains('hold')) {
+                            rightBar.style.setProperty('--hold-scale', '0');
+                            rightBar.style.setProperty('--hold-alpha', '0');
+                        }
+                    }
+                }
+
+                sideWaveState.holdLayerIndex = -1;
+                sideWaveState.holdReleaseTimer = setTimeout(() => {
+                    sideWaveState.holdReleaseTimer = null;
+                    for (let i = 0; i < sideWaveState.layers.length; i++) {
+                        const layer = sideWaveState.layers[i];
+                        if (!layer) continue;
+                        const barsCount = Math.max(layer.leftBars.length, layer.rightBars.length);
+                        for (let j = 0; j < barsCount; j++) {
+                            const leftBar = layer.leftBars[j];
+                            const rightBar = layer.rightBars[j];
+                            if (leftBar) leftBar.classList.remove('hold');
+                            if (rightBar) rightBar.classList.remove('hold');
+                        }
+                    }
+                }, SIDE_WAVE_HOLD_RELEASE_MS);
+                return;
+            }
+
             for (let i = 0; i < sideWaveState.layers.length; i++) {
                 const layer = sideWaveState.layers[i];
                 if (!layer) continue;
@@ -1342,11 +1604,46 @@
             sideWaveState.holdLayerIndex = -1;
         }
 
+        function forceClearSideWaveVisualState() {
+            clearSideWaveHoldVisual();
+            sideWaveState.activeBursts = 0;
+            if (sideWaveState.holdReleaseTimer) {
+                clearTimeout(sideWaveState.holdReleaseTimer);
+                sideWaveState.holdReleaseTimer = null;
+            }
+
+            for (let i = 0; i < sideWaveState.layers.length; i++) {
+                const layer = sideWaveState.layers[i];
+                if (!layer) continue;
+
+                if (layer.hideTimer) {
+                    clearTimeout(layer.hideTimer);
+                    layer.hideTimer = null;
+                }
+                if (layer.holdFreezeTimer) {
+                    clearTimeout(layer.holdFreezeTimer);
+                    layer.holdFreezeTimer = null;
+                }
+
+                layer.leftLayer?.classList.remove('active');
+                layer.rightLayer?.classList.remove('active');
+
+                const barsCount = Math.max(layer.leftBars.length, layer.rightBars.length);
+                for (let j = 0; j < barsCount; j++) {
+                    const leftBar = layer.leftBars[j];
+                    const rightBar = layer.rightBars[j];
+                    if (leftBar) leftBar.classList.remove('wave', 'hold');
+                    if (rightBar) rightBar.classList.remove('wave', 'hold');
+                }
+            }
+
+            if (sideWaveLeftEl) sideWaveLeftEl.classList.remove('active');
+            if (sideWaveRightEl) sideWaveRightEl.classList.remove('active');
+        }
+
         function applySideWaveHoldVisual(layer) {
             if (!layer) return;
-            clearSideWaveHoldVisual();
 
-            const holdScale = '0.56';
             const holdAlpha = '0.74';
             const hasHoldRange = Number.isInteger(layer.holdStartIndex) && Number.isInteger(layer.holdEndIndex) && layer.holdStartIndex >= 0 && layer.holdEndIndex >= layer.holdStartIndex;
             const barsCount = Math.max(layer.leftBars.length, layer.rightBars.length);
@@ -1354,18 +1651,19 @@
                 const leftBar = layer.leftBars[i];
                 const rightBar = layer.rightBars[i];
                 const inHoldRange = hasHoldRange ? (i >= layer.holdStartIndex && i <= layer.holdEndIndex) : false;
+                const holdScale = (layer.holdScaleByIndex && Number.isFinite(layer.holdScaleByIndex[i])) ? layer.holdScaleByIndex[i] : 0.56;
                 if (leftBar) {
-                    leftBar.classList.remove('wave');
+                    leftBar.classList.remove('wave', 'hold');
                     if (inHoldRange) {
-                        leftBar.style.setProperty('--hold-scale', holdScale);
+                        leftBar.style.setProperty('--hold-scale', holdScale.toFixed(3));
                         leftBar.style.setProperty('--hold-alpha', holdAlpha);
                         leftBar.classList.add('hold');
                     }
                 }
                 if (rightBar) {
-                    rightBar.classList.remove('wave');
+                    rightBar.classList.remove('wave', 'hold');
                     if (inHoldRange) {
-                        rightBar.style.setProperty('--hold-scale', holdScale);
+                        rightBar.style.setProperty('--hold-scale', holdScale.toFixed(3));
                         rightBar.style.setProperty('--hold-alpha', holdAlpha);
                         rightBar.classList.add('hold');
                     }
@@ -1374,11 +1672,10 @@
 
             layer.leftLayer.classList.add('active');
             layer.rightLayer.classList.add('active');
-            sideWaveState.holdLayerIndex = sideWaveState.layers.indexOf(layer);
         }
 
         function updateSideWaveEnabledState() {
-            const disabled = !!gameState.settings.waveDisabled;
+            const disabled = isWaveRuntimeDisabled();
             if (sideWaveLeftEl) sideWaveLeftEl.style.display = disabled ? 'none' : '';
             if (sideWaveRightEl) sideWaveRightEl.style.display = disabled ? 'none' : '';
 
@@ -1405,6 +1702,10 @@
                 if (layer.hideTimer) {
                     clearTimeout(layer.hideTimer);
                     layer.hideTimer = null;
+                }
+                if (layer.holdFreezeTimer) {
+                    clearTimeout(layer.holdFreezeTimer);
+                    layer.holdFreezeTimer = null;
                 }
             }
         }
@@ -1459,25 +1760,28 @@
         }
 
         function ensureSideWaveIdleAnimation() {
-            if (gameState.settings.waveDisabled) return;
+            if (isWaveRuntimeDisabled()) return;
             if (sideWaveState.idleAnimationFrame !== null) return;
             sideWaveState.idleAnimationFrame = requestAnimationFrame(updateSideWaveIdleAnimation);
         }
 
         function triggerSideWaveFromCenter(intensity = 1, pitchNorm = 0.5) {
-            if (gameState.settings.waveDisabled) return;
+            if (isWaveRuntimeDisabled()) return;
             if (gameState.state !== 'playing') return;
             const barsCount = sideWaveState.barCount;
             if (barsCount <= 0 || sideWaveState.layers.length === 0) return;
 
+            const clampedPitch = Math.max(0, Math.min(1, Number.isFinite(pitchNorm) ? pitchNorm : 0.5));
+            const triggerBucket = Math.round(clampedPitch * SIDE_WAVE_TRIGGER_BUCKETS);
+
             const now = performance.now();
-            if (now - sideWaveState.lastTriggerTime < 32) return;
+            if (triggerBucket === sideWaveState.lastTriggerBucket && (now - sideWaveState.lastTriggerTime) < SIDE_WAVE_SAME_LANE_RETRIGGER_MS) return;
             sideWaveState.lastTriggerTime = now;
+            sideWaveState.lastTriggerBucket = triggerBucket;
 
             const clampedIntensity = Math.max(0.7, Math.min(1.05, intensity || 1));
-            const clampedPitch = Math.max(0, Math.min(1, Number.isFinite(pitchNorm) ? pitchNorm : 0.5));
             const targetIndex = Math.round((1 - clampedPitch) * Math.max(0, barsCount - 1));
-            const activeBars = Math.max(1, Math.min(11, barsCount));
+            const activeBars = Math.max(3, Math.min(15, barsCount));
             const halfSpan = (activeBars - 1) / 2;
             let startIndex = Math.round(targetIndex - halfSpan);
             let endIndex = startIndex + activeBars - 1;
@@ -1496,9 +1800,9 @@
             const layer = sideWaveState.layers[layerIndex];
             sideWaveState.nextLayerIndex = (sideWaveState.nextLayerIndex + 1) % sideWaveState.layers.length;
 
-            if (sideWaveState.holdLayerIndex === layerIndex) {
-                clearSideWaveHoldVisual();
-            }
+            const hadPreviousRange = Number.isInteger(layer.holdStartIndex) && Number.isInteger(layer.holdEndIndex) && layer.holdStartIndex >= 0 && layer.holdEndIndex >= layer.holdStartIndex;
+            const prevStart = hadPreviousRange ? layer.holdStartIndex : startIndex;
+            const prevEnd = hadPreviousRange ? layer.holdEndIndex : endIndex;
 
             if (sideWaveState.activeBursts === 0) {
                 sideWaveLeftEl.classList.add('active');
@@ -1512,31 +1816,40 @@
                 clearTimeout(layer.hideTimer);
                 layer.hideTimer = null;
             }
+            if (layer.holdFreezeTimer) {
+                clearTimeout(layer.holdFreezeTimer);
+                layer.holdFreezeTimer = null;
+            }
             layer.holdStartIndex = startIndex;
             layer.holdEndIndex = endIndex;
+            layer.holdScaleByIndex = new Array(barsCount);
+            const clearStart = Math.max(0, Math.min(prevStart, startIndex));
+            const clearEnd = Math.min(barsCount - 1, Math.max(prevEnd, endIndex));
 
-            for (let i = 0; i < barsCount; i++) {
+            // Only clear and update bars that are actually involved in this or previous pulse.
+            for (let i = clearStart; i <= clearEnd; i++) {
+                const leftBar = layer.leftBars[i];
+                const rightBar = layer.rightBars[i];
+                if (!leftBar || !rightBar) continue;
+                leftBar.classList.remove('wave', 'hold');
+                rightBar.classList.remove('wave', 'hold');
+            }
+
+            for (let i = startIndex; i <= endIndex; i++) {
                 const leftBar = layer.leftBars[i];
                 const rightBar = layer.rightBars[i];
                 if (!leftBar || !rightBar) continue;
 
-                const delayMs = '0ms';
-                const isActive = i >= startIndex && i <= endIndex;
+                const distance = Math.abs(i - activeCenter);
+                const normalized = Math.min(1, distance / parabolaRadius);
+                const parabola = Math.max(0, 1 - (normalized * normalized));
+                const smoothParabola = Math.pow(parabola, 1.35);
+                const peak = (0.06 + (0.34 * smoothParabola)) * clampedIntensity;
+                const peakScale = Math.max(0.05, Math.min(0.55, peak));
+                layer.holdScaleByIndex[i] = peakScale;
 
-                let peakScale = 0.02;
-                if (isActive) {
-                    const distance = Math.abs(i - activeCenter);
-                    const normalized = Math.min(1, distance / parabolaRadius);
-                    const parabola = Math.max(0, 1 - (normalized * normalized));
-                    const sharpParabola = Math.pow(parabola, 1.9);
-                    const peak = (0.36 + (0.52 * sharpParabola)) * clampedIntensity;
-                    peakScale = Math.max(0.38, Math.min(0.9, peak));
-                }
-
-                leftBar.classList.remove('wave');
-                rightBar.classList.remove('wave');
-                leftBar.style.setProperty('--delay-ms', delayMs);
-                rightBar.style.setProperty('--delay-ms', delayMs);
+                leftBar.style.setProperty('--delay-ms', '0ms');
+                rightBar.style.setProperty('--delay-ms', '0ms');
                 leftBar.style.setProperty('--peak-scale', peakScale.toFixed(3));
                 rightBar.style.setProperty('--peak-scale', peakScale.toFixed(3));
             }
@@ -1552,11 +1865,22 @@
                 }
             });
 
+            layer.holdFreezeTimer = setTimeout(() => {
+                layer.holdFreezeTimer = null;
+                if (hasPersistentWaveInput()) {
+                    applySideWaveHoldVisual(layer);
+                }
+            }, SIDE_WAVE_HOLD_FREEZE_DELAY_MS);
+
             layer.hideTimer = setTimeout(() => {
                 layer.hideTimer = null;
                 sideWaveState.activeBursts = Math.max(0, sideWaveState.activeBursts - 1);
+                if (hasPersistentWaveInput()) {
+                    applySideWaveHoldVisual(layer);
+                    return;
+                }
                 if (sideWaveState.activeBursts === 0) {
-                    if (hasActiveWaveInput()) {
+                    if (hasPersistentWaveInput()) {
                         applySideWaveHoldVisual(layer);
                     } else {
                         layer.leftLayer.classList.remove('active');
@@ -1565,15 +1889,15 @@
                         sideWaveLeftEl.classList.remove('active');
                         sideWaveRightEl.classList.remove('active');
                     }
-                } else if (!hasActiveWaveInput()) {
+                } else if (!hasPersistentWaveInput()) {
                     layer.leftLayer.classList.remove('active');
                     layer.rightLayer.classList.remove('active');
                 }
-            }, 430);
+            }, 620);
         }
 
         function updateSideWaveGameplayState() {
-            if (gameState.settings.waveDisabled) {
+            if (isWaveRuntimeDisabled()) {
                 if (sideWaveState.idleAnimationFrame !== null) {
                     cancelAnimationFrame(sideWaveState.idleAnimationFrame);
                     sideWaveState.idleAnimationFrame = null;
@@ -3170,10 +3494,10 @@
 
             if (themeIndex === 5) {
                 return {
-                    base: '#5c2aa8',
-                    active: '#9a68ff',
-                    stroke: '#2a124d',
-                    label: '#f4e7ff'
+                    base: '#1f6d2f',
+                    active: '#8be28c',
+                    stroke: '#0d3d18',
+                    label: '#e9ffe6'
                 };
             }
 
@@ -3188,10 +3512,10 @@
 
             if (themeIndex === 7) {
                 return {
-                    base: '#ff5f6d',
-                    active: '#5fd3ff',
-                    stroke: '#5e2a8f',
-                    label: '#ffffff'
+                    base: '#5c2aa8',
+                    active: '#9a68ff',
+                    stroke: '#2a124d',
+                    label: '#f4e7ff'
                 };
             }
 
@@ -3201,6 +3525,24 @@
                     active: '#ffffff',
                     stroke: '#8cc7ef',
                     label: '#1a4f77'
+                };
+            }
+
+            if (themeIndex === 9) {
+                return {
+                    base: '#c98a1c',
+                    active: '#ffe38e',
+                    stroke: '#81540d',
+                    label: '#fffbee'
+                };
+            }
+
+            if (themeIndex === 10) {
+                return {
+                    base: '#ff5f6d',
+                    active: '#5fd3ff',
+                    stroke: '#5e2a8f',
+                    label: '#ffffff'
                 };
             }
 
@@ -3238,6 +3580,37 @@
             ctx.shadowBlur = 5;
             ctx.fillStyle = '#ffffff';
             ctx.fillText('⚡', 0, 0);
+            ctx.restore();
+
+            ctx.restore();
+        }
+
+        function drawPlantPatternOnTile(tile, alpha = 1) {
+            const x = tile.x;
+            const y = tile.y;
+            const w = tile.width;
+            const h = tile.height;
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(x, y, w, h);
+            ctx.clip();
+            ctx.globalAlpha *= Math.max(0.2, Math.min(1, alpha));
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            const bx = x + (w * 0.5);
+            const by = y + (h * 0.5);
+            const emojiSize = Math.max(9, Math.min(14, h * 0.26));
+
+            ctx.save();
+            ctx.translate(bx, by);
+            ctx.rotate(-0.08);
+            ctx.font = `bold ${emojiSize}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+            ctx.shadowColor = 'rgba(161, 242, 168, 0.9)';
+            ctx.shadowBlur = 5;
+            ctx.fillStyle = '#f3fff0';
+            ctx.fillText('🌿', 0, 0);
             ctx.restore();
 
             ctx.restore();
@@ -3454,6 +3827,51 @@
             ctx.restore();
         }
 
+        function drawGoldPatternOnTile(tile, alpha = 1) {
+            const x = tile.x;
+            const y = tile.y;
+            const w = tile.width;
+            const h = tile.height;
+            const t = gameState.gameFrame || 0;
+            const goldPatternLightMode = gameState.keyParticles.length > 120;
+            const shimmerPulse = 0.55 + (Math.sin((t * 0.12) + (tile.column * 0.6)) * 0.45);
+
+            // Moving inner gold stream with warm shades.
+            const flow = (Math.sin((t * 0.07) + (tile.column * 0.65)) * 0.5) + 0.5;
+            const streamX = x + (w * (0.22 + (flow * 0.56)));
+            const streamWidth = Math.max(3, w * 0.32);
+            if (goldPatternLightMode) {
+                ctx.fillStyle = `rgba(255, 231, 130, ${0.28 * alpha})`;
+            } else {
+                const streamGradient = ctx.createLinearGradient(streamX - (streamWidth * 0.5), y, streamX + (streamWidth * 0.5), y + h);
+                streamGradient.addColorStop(0.00, `rgba(255, 248, 196, ${0.52 * alpha})`);
+                streamGradient.addColorStop(0.45, `rgba(255, 221, 108, ${0.7 * alpha})`);
+                streamGradient.addColorStop(1.00, `rgba(226, 154, 34, ${0.42 * alpha})`);
+                ctx.fillStyle = streamGradient;
+            }
+            ctx.fillRect(streamX - (streamWidth * 0.5), y, streamWidth, h);
+
+            // Moving shimmer ribbon for extra shine.
+            const shimmerX = x + (w * (0.12 + ((((t * 0.018) + (tile.column * 0.11)) % 1) * 0.76)));
+            const shimmerWidth = Math.max(2, w * 0.14);
+            const shimmerAlpha = goldPatternLightMode ? (0.18 * alpha) : ((0.22 + (shimmerPulse * 0.18)) * alpha);
+            ctx.fillStyle = `rgba(255, 252, 222, ${shimmerAlpha})`;
+            ctx.fillRect(shimmerX, y + 1, shimmerWidth, Math.max(2, h - 2));
+
+            // Thin moving highlights to suggest liquid gold.
+            const stripeCount = goldPatternLightMode ? 1 : 2;
+            for (let i = 0; i < stripeCount; i++) {
+                const phase = ((t * 0.05) + (i * 1.35) + (tile.column * 0.42)) % (Math.PI * 2);
+                const stripeX = x + (w * (0.14 + (i * 0.28))) + (Math.sin(phase) * w * 0.08);
+                ctx.strokeStyle = `rgba(255, 252, 225, ${goldPatternLightMode ? 0.22 : (0.28 + (shimmerPulse * 0.16)) * alpha})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(stripeX, y + 1.5);
+                ctx.lineTo(stripeX + (w * 0.06), y + h - 1.5);
+                ctx.stroke();
+            }
+        }
+
         let tileIdCounter = 1;
 
         class Tile {
@@ -3532,6 +3950,7 @@
                 let alpha = 1;
                 const themeIndex = gameState.shop.selectedTheme | 0;
                 const palette = getThemeTilePalette(themeIndex);
+                const performanceMode = !!gameState.settings.performanceModeEnabled;
                 
                 if (this.hit) {
                     alpha = 1 - (this.fadeTimer / this.fadeDuration);
@@ -3550,7 +3969,7 @@
                 }
                 
                 ctx.globalAlpha = alpha;
-                if (themeIndex === 3 && !this.missed) {
+                if (!performanceMode && themeIndex === 3 && !this.missed) {
                     const lightningGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
                     if (this.hit || this.holding) {
                         lightningGradient.addColorStop(0, '#1a1a1a');
@@ -3560,7 +3979,7 @@
                         lightningGradient.addColorStop(1, '#ffd400');
                     }
                     ctx.fillStyle = lightningGradient;
-                } else if (themeIndex === 4 && !this.missed) {
+                } else if (!performanceMode && themeIndex === 4 && !this.missed) {
                     const frostGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
                     if (this.hit || this.holding) {
                         frostGradient.addColorStop(0, '#ffffff');
@@ -3572,17 +3991,17 @@
                         frostGradient.addColorStop(1, '#82d6ff');
                     }
                     ctx.fillStyle = frostGradient;
-                } else if (themeIndex === 5 && !this.missed) {
-                    const galacticGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                } else if (!performanceMode && themeIndex === 5 && !this.missed) {
+                    const plantsGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
                     if (this.hit || this.holding) {
-                        galacticGradient.addColorStop(0, '#4a1f88');
-                        galacticGradient.addColorStop(1, '#ff78d1');
+                        plantsGradient.addColorStop(0, '#11331a');
+                        plantsGradient.addColorStop(1, '#8be28c');
                     } else {
-                        galacticGradient.addColorStop(0, '#251042');
-                        galacticGradient.addColorStop(1, '#d954c0');
+                        plantsGradient.addColorStop(0, '#0a1f10');
+                        plantsGradient.addColorStop(1, '#1f6d2f');
                     }
-                    ctx.fillStyle = galacticGradient;
-                } else if (themeIndex === 6 && !this.missed) {
+                    ctx.fillStyle = plantsGradient;
+                } else if (!performanceMode && themeIndex === 6 && !this.missed) {
                     const hellGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
                     if (this.hit || this.holding) {
                         hellGradient.addColorStop(0, '#741010');
@@ -3592,18 +4011,17 @@
                         hellGradient.addColorStop(1, '#8a1414');
                     }
                     ctx.fillStyle = hellGradient;
-                } else if (themeIndex === 7 && !this.missed) {
-                    const rainbowShift = (gameState.gameFrame * 1.8) % 360;
-                    const rainbowGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
-                    rainbowGradient.addColorStop(0.00, `hsl(${(rainbowShift + 0) % 360}, 95%, ${this.hit || this.holding ? '64%' : '57%'})`);
-                    rainbowGradient.addColorStop(0.17, `hsl(${(rainbowShift + 52) % 360}, 95%, ${this.hit || this.holding ? '66%' : '58%'})`);
-                    rainbowGradient.addColorStop(0.34, `hsl(${(rainbowShift + 104) % 360}, 95%, ${this.hit || this.holding ? '67%' : '59%'})`);
-                    rainbowGradient.addColorStop(0.51, `hsl(${(rainbowShift + 156) % 360}, 95%, ${this.hit || this.holding ? '66%' : '58%'})`);
-                    rainbowGradient.addColorStop(0.68, `hsl(${(rainbowShift + 208) % 360}, 95%, ${this.hit || this.holding ? '65%' : '57%'})`);
-                    rainbowGradient.addColorStop(0.84, `hsl(${(rainbowShift + 260) % 360}, 95%, ${this.hit || this.holding ? '64%' : '56%'})`);
-                    rainbowGradient.addColorStop(1.00, `hsl(${(rainbowShift + 312) % 360}, 95%, ${this.hit || this.holding ? '64%' : '57%'})`);
-                    ctx.fillStyle = rainbowGradient;
-                } else if (themeIndex === 8 && !this.missed) {
+                } else if (!performanceMode && themeIndex === 7 && !this.missed) {
+                    const galacticGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    if (this.hit || this.holding) {
+                        galacticGradient.addColorStop(0, '#4a1f88');
+                        galacticGradient.addColorStop(1, '#ff78d1');
+                    } else {
+                        galacticGradient.addColorStop(0, '#251042');
+                        galacticGradient.addColorStop(1, '#d954c0');
+                    }
+                    ctx.fillStyle = galacticGradient;
+                } else if (!performanceMode && themeIndex === 8 && !this.missed) {
                     const heavenGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
                     if (this.hit || this.holding) {
                         heavenGradient.addColorStop(0, '#ffffff');
@@ -3615,28 +4033,51 @@
                         heavenGradient.addColorStop(1, '#b8ddfb');
                     }
                     ctx.fillStyle = heavenGradient;
+                } else if (!performanceMode && themeIndex === 9 && !this.missed) {
+                    const goldGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    if (this.hit || this.holding) {
+                        goldGradient.addColorStop(0, '#fff8cd');
+                        goldGradient.addColorStop(0.52, '#ffd968');
+                        goldGradient.addColorStop(1, '#cf8b24');
+                    } else {
+                        goldGradient.addColorStop(0, '#ffdf7c');
+                        goldGradient.addColorStop(0.55, '#e2a53a');
+                        goldGradient.addColorStop(1, '#9f6412');
+                    }
+                    ctx.fillStyle = goldGradient;
+                } else if (!performanceMode && themeIndex === 10 && !this.missed) {
+                    const rainbowShift = (gameState.gameFrame * 1.8) % 360;
+                    const rainbowGradient = ctx.createLinearGradient(this.x, this.y, this.x, this.y + this.height);
+                    rainbowGradient.addColorStop(0.00, `hsl(${(rainbowShift + 0) % 360}, 95%, ${this.hit || this.holding ? '64%' : '57%'})`);
+                    rainbowGradient.addColorStop(0.17, `hsl(${(rainbowShift + 52) % 360}, 95%, ${this.hit || this.holding ? '66%' : '58%'})`);
+                    rainbowGradient.addColorStop(0.34, `hsl(${(rainbowShift + 104) % 360}, 95%, ${this.hit || this.holding ? '67%' : '59%'})`);
+                    rainbowGradient.addColorStop(0.51, `hsl(${(rainbowShift + 156) % 360}, 95%, ${this.hit || this.holding ? '66%' : '58%'})`);
+                    rainbowGradient.addColorStop(0.68, `hsl(${(rainbowShift + 208) % 360}, 95%, ${this.hit || this.holding ? '65%' : '57%'})`);
+                    rainbowGradient.addColorStop(0.84, `hsl(${(rainbowShift + 260) % 360}, 95%, ${this.hit || this.holding ? '64%' : '56%'})`);
+                    rainbowGradient.addColorStop(1.00, `hsl(${(rainbowShift + 312) % 360}, 95%, ${this.hit || this.holding ? '64%' : '57%'})`);
+                    ctx.fillStyle = rainbowGradient;
                 } else {
                     ctx.fillStyle = color;
                 }
                 ctx.fillRect(this.x, this.y, this.width, this.height);
 
-                if (!this.missed && themeIndex === 3) {
+                if (!performanceMode && !this.missed && themeIndex === 3) {
                     drawLightningPatternOnTile(this, this.hit || this.holding ? 0.95 : 0.8);
                 }
 
-                if (!this.missed && themeIndex === 4) {
+                if (!performanceMode && !this.missed && themeIndex === 4) {
                     drawIcePatternOnTile(this, this.hit || this.holding ? 0.9 : 0.76);
                 }
 
-                if (!this.missed && themeIndex === 5) {
-                    drawGalacticPatternOnTile(this, this.hit || this.holding ? 0.92 : 0.8);
+                if (!performanceMode && !this.missed && themeIndex === 5) {
+                    drawPlantPatternOnTile(this, this.hit || this.holding ? 0.95 : 0.8);
                 }
 
-                if (!this.missed && themeIndex === 6) {
+                if (!performanceMode && !this.missed && themeIndex === 6) {
                     drawHellPatternOnTile(this, this.hit || this.holding ? 0.95 : 0.82);
                 }
 
-                if (!this.missed && themeIndex === 8) {
+                if (!performanceMode && !this.missed && themeIndex === 8) {
                     // Lightweight glow pass to keep Heaven notes bright without heavy blur effects.
                     ctx.save();
                     ctx.globalAlpha = alpha * (this.hit || this.holding ? 0.34 : 0.24);
@@ -3647,7 +4088,21 @@
                     drawHeavenPatternOnTile(this, this.hit || this.holding ? 0.95 : 0.82);
                 }
 
-                if (!this.hit && !this.missed && !this.holding && themeIndex === 0 && !gameState.tutorialMode) {
+                if (!performanceMode && !this.missed && themeIndex === 9) {
+                    ctx.save();
+                    ctx.globalAlpha = alpha * (this.hit || this.holding ? 0.5 : 0.38);
+                    ctx.strokeStyle = this.hit || this.holding ? '#fff0b6' : '#ffd46f';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(this.x + 0.5, this.y + 0.5, this.width - 1, this.height - 1);
+                    ctx.restore();
+                    drawGoldPatternOnTile(this, this.hit || this.holding ? 1 : 0.86);
+                }
+
+                if (!performanceMode && !this.missed && themeIndex === 7) {
+                    drawGalacticPatternOnTile(this, this.hit || this.holding ? 0.92 : 0.8);
+                }
+
+                if (!performanceMode && !this.hit && !this.missed && !this.holding && themeIndex === 0 && !gameState.tutorialMode) {
                     const glossHeight = Math.max(3, Math.floor(this.height * 0.3));
                     ctx.fillStyle = 'rgba(255, 255, 210, 0.38)';
                     ctx.fillRect(this.x + 1, this.y + 1, Math.max(2, this.width - 2), glossHeight);
@@ -3746,16 +4201,19 @@
         }
 
         function spawnKeyParticles(column) {
+            if (gameState.settings.performanceModeEnabled) return;
             if (gameState.keyParticles.length >= MAX_KEY_PARTICLES) return;
             const keyRect = getKeyRect(column);
             const isWaterfallTheme = gameState.shop.selectedTheme === 1;
             const isVolcanoTheme = gameState.shop.selectedTheme === 2;
             const isElectricTheme = gameState.shop.selectedTheme === 3;
             const isIceTheme = gameState.shop.selectedTheme === 4;
-            const isGalacticTheme = gameState.shop.selectedTheme === 5;
+            const isGalacticTheme = gameState.shop.selectedTheme === 7;
             const isHellTheme = gameState.shop.selectedTheme === 6;
-            const isRainbowTheme = gameState.shop.selectedTheme === 7;
+            const isRainbowTheme = gameState.shop.selectedTheme === 10;
             const isHeavenTheme = gameState.shop.selectedTheme === 8;
+            const isGoldTheme = gameState.shop.selectedTheme === 9;
+            const isPlantsTheme = gameState.shop.selectedTheme === 5;
 
             if (isWaterfallTheme) {
                 const dropletColors = ['#bfeaff', '#79c8ff', '#2f7fe3'];
@@ -3901,6 +4359,52 @@
                 return;
             }
 
+            if (isPlantsTheme) {
+                const startY = BAR_Y - 1.0;
+                const boltCount = 1;
+
+                for (let i = 0; i < boltCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    const lifetime = KEY_PARTICLE_LIFETIME - 7;
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY,
+                        vx: (Math.random() - 0.5) * 0.34,
+                        vy: -2.9,
+                        gravity: 0.05,
+                        phase: Math.random() * Math.PI * 2,
+                        boltLength: 10,
+                        boltJitter: 1.8,
+                        boltSegments: 5,
+                        branchAngle: (Math.random() < 0.5 ? -1 : 1) * (0.28 + Math.random() * 0.3),
+                        life: lifetime,
+                        maxLife: lifetime,
+                        color: '#f0fff2',
+                        glowColor: '#9af3a8',
+                        particleType: 'plant-bolt'
+                    });
+                }
+
+                const flashSparkCount = 1;
+                for (let i = 0; i < flashSparkCount; i++) {
+                    const spawnX = keyRect.x + (Math.random() * keyRect.width);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: BAR_Y - 0.8,
+                        vx: (Math.random() - 0.5) * 1.15,
+                        vy: -1.1,
+                        gravity: 0.06,
+                        size: 1.1,
+                        life: 11,
+                        maxLife: 11,
+                        color: '#d5ffd9',
+                        glowColor: '#7ddf86',
+                        particleType: 'plant-spark'
+                    });
+                }
+                return;
+            }
+
             if (isHellTheme) {
                 const startY = BAR_Y - (0.8 + Math.random() * 0.9);
                 const skullCount = 1;
@@ -3930,17 +4434,17 @@
                 for (let i = 0; i < gameState.keyParticles.length; i++) {
                     if (gameState.keyParticles[i].particleType === 'heaven-cloud') {
                         existingCloudCount++;
-                        if (existingCloudCount > 36) break;
+                        if (existingCloudCount > 18) break;
                     }
                 }
 
-                if (existingCloudCount > 36) return;
+                if (existingCloudCount > 18) return;
 
                 const startY = BAR_Y - (0.5 + Math.random() * 0.8);
-                const cloudCount = existingCloudCount > 24 ? 2 : 3;
+                const cloudCount = existingCloudCount > 12 ? 1 : 2;
                 for (let i = 0; i < cloudCount; i++) {
                     const spawnX = keyRect.x + (keyRect.width * (0.2 + Math.random() * 0.6));
-                    const life = 16 + Math.floor(Math.random() * 8);
+                    const life = 13 + Math.floor(Math.random() * 5);
                     gameState.keyParticles.push({
                         x: spawnX,
                         y: startY + (Math.random() * 0.8),
@@ -3954,6 +4458,43 @@
                         color: '#0b0f14',
                         accentColor: '#ffffff',
                         particleType: 'heaven-cloud'
+                    });
+                }
+                return;
+            }
+
+            if (isGoldTheme) {
+                let existingGoldCount = 0;
+                for (let i = 0; i < gameState.keyParticles.length; i++) {
+                    if (gameState.keyParticles[i].particleType === 'gold-flare') {
+                        existingGoldCount++;
+                        if (existingGoldCount > GOLD_PARTICLE_SOFT_CAP) break;
+                    }
+                }
+
+                if (existingGoldCount > GOLD_PARTICLE_SOFT_CAP) return;
+
+                const startY = BAR_Y - (0.7 + Math.random() * 0.8);
+                const flareCount = (existingGoldCount > 32 || Math.random() < 0.68) ? 1 : 2;
+                for (let i = 0; i < flareCount; i++) {
+                    const spawnX = keyRect.x + (keyRect.width * (0.2 + Math.random() * 0.6));
+                    const highFlare = Math.random() < 0.12;
+                    const life = highFlare ? 20 + Math.floor(Math.random() * 8) : 12 + Math.floor(Math.random() * 6);
+                    gameState.keyParticles.push({
+                        x: spawnX,
+                        y: startY,
+                        vx: (Math.random() - 0.5) * (highFlare ? 0.16 : 0.24),
+                        vy: -(highFlare ? (2.5 + Math.random() * 1.8) : (1.2 + Math.random() * 1.0)),
+                        gravity: highFlare ? 0.036 : 0.048,
+                        size: highFlare ? (2.2 + Math.random() * 1.8) : (1.4 + Math.random() * 1.2),
+                        life,
+                        maxLife: life,
+                        phase: Math.random() * Math.PI * 2,
+                        highFlare,
+                        color: highFlare ? '#fff0b8' : '#ffd062',
+                        coreColor: highFlare ? '#fff9dd' : '#ffecb0',
+                        glowColor: highFlare ? 'rgba(255, 196, 74, 0.68)' : 'rgba(242, 170, 46, 0.52)',
+                        particleType: 'gold-flare'
                     });
                 }
                 return;
@@ -4123,12 +4664,20 @@
         }
 
         function updateKeyParticles() {
+            if (gameState.settings.performanceModeEnabled) {
+                if (gameState.keyParticles.length > 0) {
+                    gameState.keyParticles.length = 0;
+                }
+                return;
+            }
             const isIceThemeActive = (gameState.shop.selectedTheme | 0) === 4;
-            const isGalacticThemeActive = (gameState.shop.selectedTheme | 0) === 5;
+            const isGalacticThemeActive = (gameState.shop.selectedTheme | 0) === 7;
             const isElectricThemeActive = (gameState.shop.selectedTheme | 0) === 3;
             const isHellThemeActive = (gameState.shop.selectedTheme | 0) === 6;
-            const isRainbowThemeActive = (gameState.shop.selectedTheme | 0) === 7;
+            const isRainbowThemeActive = (gameState.shop.selectedTheme | 0) === 10;
             const isHeavenThemeActive = (gameState.shop.selectedTheme | 0) === 8;
+            const isGoldThemeActive = (gameState.shop.selectedTheme | 0) === 9;
+            const isPlantsThemeActive = (gameState.shop.selectedTheme | 0) === 5;
             const iceEmitInterval = 2;
             for (let column = 0; column < NUM_COLUMNS; column++) {
                 if (!gameState.pressedKeys.has(column)) {
@@ -4145,6 +4694,10 @@
                         gameState.keyParticleEmitTimers[column] = HELL_EMIT_INTERVAL;
                     } else if (isHeavenThemeActive) {
                         gameState.keyParticleEmitTimers[column] = HEAVEN_EMIT_INTERVAL;
+                    } else if (isGoldThemeActive) {
+                        gameState.keyParticleEmitTimers[column] = GOLD_EMIT_INTERVAL;
+                    } else if (isPlantsThemeActive) {
+                        gameState.keyParticleEmitTimers[column] = ELECTRIC_EMIT_INTERVAL;
                     } else if (isElectricThemeActive) {
                         gameState.keyParticleEmitTimers[column] = ELECTRIC_EMIT_INTERVAL;
                     } else if (isRainbowThemeActive) {
@@ -4217,10 +4770,10 @@
                     particle.vy -= 0.005;
                     particle.vy += particle.gravity || 0.01;
                     particle.vx *= 0.97;
-                } else if (particle.particleType === 'electric-bolt') {
+                } else if (particle.particleType === 'electric-bolt' || particle.particleType === 'plant-bolt') {
                     particle.vy += particle.gravity || 0.03;
                     particle.vx *= 0.985;
-                } else if (particle.particleType === 'electric-spark') {
+                } else if (particle.particleType === 'electric-spark' || particle.particleType === 'plant-spark') {
                     particle.vy += particle.gravity || 0.06;
                     particle.vx *= 0.965;
                 } else if (particle.particleType === 'ice-flake') {
@@ -4251,6 +4804,14 @@
                     particle.vx *= 0.992;
                     particle.vy += particle.gravity || 0.003;
                     particle.vy *= 0.988;
+                } else if (particle.particleType === 'gold-flare') {
+                    particle.age = (particle.age || 0) + 1;
+                    particle.vx += Math.sin((particle.age * 0.2) + (particle.phase || 0)) * (particle.highFlare ? 0.01 : 0.006);
+                    particle.vx *= particle.highFlare ? 0.992 : 0.987;
+                    particle.vy += particle.gravity || 0.044;
+                    if (particle.highFlare) {
+                        particle.vy *= 0.994;
+                    }
                 } else if (particle.particleType === 'rainbow-streak') {
                     particle.age = (particle.age || 0) + 1;
                     particle.wobblePhase = (particle.wobblePhase || 0) + (particle.wobbleSpeed || 0.26);
@@ -4272,6 +4833,7 @@
         }
 
         function drawKeyParticles() {
+            if (gameState.settings.performanceModeEnabled) return;
             const highLoadEffects = gameState.keyParticles.length > 180;
             for (const particle of gameState.keyParticles) {
                 const alpha = Math.max(0, particle.life / particle.maxLife);
@@ -4372,6 +4934,37 @@
                     continue;
                 }
 
+                if (particle.particleType === 'plant-bolt') {
+                    const flash = 0.68 + (Math.sin((gameState.gameFrame * 0.6) + (particle.phase || 0)) * 0.32);
+                    const boltLength = particle.boltLength || 10;
+                    const x = particle.x;
+                    const y = particle.y;
+
+                    const fontSize = Math.max(13, Math.min(25, boltLength * (highLoadEffects ? 1.25 : 1.65)));
+                    ctx.save();
+                    ctx.translate(x, y);
+                    ctx.rotate((particle.branchAngle || 0.2) * 0.5);
+                    ctx.globalAlpha = Math.min(1, alpha * (0.78 + flash * 0.35));
+                    ctx.font = `bold ${fontSize}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor = particle.glowColor || '#9af3a8';
+                    ctx.shadowBlur = highLoadEffects ? 6 : 12;
+                    ctx.fillStyle = particle.color || '#f0fff2';
+                    ctx.fillText('🌿', 0, 0);
+
+                    if (!highLoadEffects && flash > 0.82) {
+                        ctx.globalAlpha = Math.min(1, alpha * 0.62);
+                        ctx.shadowBlur = 0;
+                        ctx.font = `bold ${Math.max(10, Math.floor(fontSize * 0.72))}px "Segoe UI Emoji", "Apple Color Emoji", sans-serif`;
+                        ctx.fillStyle = '#f6fff6';
+                        ctx.fillText('🌿', (particle.boltJitter || 1.6) * 1.1, fontSize * 0.22);
+                    }
+
+                    ctx.restore();
+                    continue;
+                }
+
                 if (particle.particleType === 'electric-spark') {
                     if (highLoadEffects) {
                         ctx.globalAlpha = alpha;
@@ -4384,6 +4977,27 @@
                         ctx.globalAlpha = alpha;
                         ctx.fillStyle = particle.color || '#fff87a';
                         ctx.shadowColor = '#ffe44d';
+                        ctx.shadowBlur = 10;
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, particle.size || 1.1, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                    continue;
+                }
+
+                if (particle.particleType === 'plant-spark') {
+                    if (highLoadEffects) {
+                        ctx.globalAlpha = alpha;
+                        ctx.fillStyle = particle.color || '#d5ffd9';
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, particle.size || 1.1, 0, Math.PI * 2);
+                        ctx.fill();
+                    } else {
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        ctx.fillStyle = particle.color || '#d5ffd9';
+                        ctx.shadowColor = particle.glowColor || '#7ddf86';
                         ctx.shadowBlur = 10;
                         ctx.beginPath();
                         ctx.arc(particle.x, particle.y, particle.size || 1.1, 0, Math.PI * 2);
@@ -4421,38 +5035,54 @@
 
                 if (particle.particleType === 'heaven-cloud') {
                     const size = particle.size || 2.2;
-                    const baseColor = particle.color || '#0b0f14';
-                    const accentColor = particle.accentColor || '#ffffff';
+                    // dark cloud base — no save/restore, no shadowBlur
+                    ctx.globalAlpha = Math.min(1, alpha * 0.88);
+                    ctx.fillStyle = particle.color || '#0b0f14';
+                    ctx.beginPath();
+                    ctx.arc(particle.x - (size * 0.44), particle.y + (size * 0.1), size * 0.52, 0, Math.PI * 2);
+                    ctx.arc(particle.x + (size * 0.44), particle.y + (size * 0.1), size * 0.5, 0, Math.PI * 2);
+                    ctx.arc(particle.x, particle.y - (size * 0.12), size * 0.62, 0, Math.PI * 2);
+                    ctx.fill();
+                    // white highlight
+                    ctx.globalAlpha = Math.min(1, alpha * 0.82);
+                    ctx.fillStyle = particle.accentColor || '#ffffff';
+                    ctx.beginPath();
+                    ctx.arc(particle.x - (size * 0.1), particle.y - (size * 0.2), size * 0.22, 0, Math.PI * 2);
+                    ctx.fill();
+                    continue;
+                }
 
-                    if (highLoadEffects) {
-                        ctx.globalAlpha = Math.min(1, alpha * 0.88);
-                        ctx.fillStyle = baseColor;
+                if (particle.particleType === 'gold-flare') {
+                    const size = particle.size || 1.8;
+                    const flareAlpha = Math.min(1, alpha * (particle.highFlare ? 0.96 : 0.88));
+                    if (highLoadEffects || !particle.highFlare) {
+                        ctx.globalAlpha = flareAlpha;
+                        ctx.fillStyle = particle.color || '#ffd062';
                         ctx.beginPath();
-                        ctx.arc(particle.x, particle.y, Math.max(1.2, size * 0.52), 0, Math.PI * 2);
-                        ctx.fill();
-                        ctx.globalAlpha = Math.min(1, alpha * 0.78);
-                        ctx.fillStyle = accentColor;
-                        ctx.beginPath();
-                        ctx.arc(particle.x, particle.y - (size * 0.16), Math.max(0.6, size * 0.25), 0, Math.PI * 2);
+                        ctx.arc(particle.x, particle.y, Math.max(0.9, size * 0.42), 0, Math.PI * 2);
                         ctx.fill();
                     } else {
+                        const angle = Math.atan2(particle.vy, particle.vx) + (Math.PI / 2);
                         ctx.save();
-                        ctx.globalAlpha = Math.min(1, alpha * 0.86);
-                        ctx.shadowColor = 'rgba(120, 170, 215, 0.45)';
-                        ctx.shadowBlur = 4;
-                        ctx.fillStyle = baseColor;
+                        ctx.translate(particle.x, particle.y);
+                        ctx.rotate(angle);
+                        ctx.globalAlpha = flareAlpha;
+                        ctx.shadowColor = particle.glowColor || 'rgba(242, 170, 46, 0.52)';
+                        ctx.shadowBlur = 7;
+                        ctx.fillStyle = particle.color || '#ffd062';
                         ctx.beginPath();
-                        ctx.arc(particle.x - (size * 0.48), particle.y + (size * 0.1), size * 0.54, 0, Math.PI * 2);
-                        ctx.arc(particle.x, particle.y - (size * 0.14), size * 0.66, 0, Math.PI * 2);
-                        ctx.arc(particle.x + (size * 0.5), particle.y + (size * 0.12), size * 0.52, 0, Math.PI * 2);
+                        ctx.moveTo(0, -size * (particle.highFlare ? 2.6 : 2.05));
+                        ctx.quadraticCurveTo(size * 0.78, -size * 0.2, size * 0.48, size * 0.86);
+                        ctx.quadraticCurveTo(0, size * 1.2, -size * 0.48, size * 0.86);
+                        ctx.quadraticCurveTo(-size * 0.78, -size * 0.2, 0, -size * (particle.highFlare ? 2.6 : 2.05));
+                        ctx.closePath();
                         ctx.fill();
 
                         ctx.globalAlpha = Math.min(1, alpha * 0.92);
                         ctx.shadowBlur = 0;
-                        ctx.fillStyle = accentColor;
+                        ctx.fillStyle = particle.coreColor || '#ffecb0';
                         ctx.beginPath();
-                        ctx.arc(particle.x - (size * 0.16), particle.y - (size * 0.22), size * 0.26, 0, Math.PI * 2);
-                        ctx.arc(particle.x + (size * 0.22), particle.y - (size * 0.12), size * 0.2, 0, Math.PI * 2);
+                        ctx.arc(0, size * 0.14, Math.max(0.6, size * 0.26), 0, Math.PI * 2);
                         ctx.fill();
                         ctx.restore();
                     }
@@ -4782,6 +5412,7 @@
                 gameState.missTimer = 0;
                 gameState.missFlashFrames = Math.max(1, flashFrames || WRONG_KEY_FLASH_FRAMES);
             }
+            showJudgement('Oof');
 
             if (gameState.livesAnimTimeout) {
                 clearTimeout(gameState.livesAnimTimeout);
@@ -4850,6 +5481,22 @@
             document.getElementById('midiFileInput').value = '';
         }
 
+        function clearTutorialSettingsHighlight() {
+            const pauseSettingsBtn = document.getElementById('pauseSettingsBtn');
+            if (pauseSettingsBtn) pauseSettingsBtn.classList.remove('tutorial-highlight');
+        }
+
+        function enterTutorialSettingsStepFromEsc() {
+            gameState.tutorialAwaitEsc = false;
+            gameState.tutorialAwaitSettingsClick = true;
+            gameState.state = 'paused';
+            gameState.tutorialOverlayActive = false;
+            hideElement('tutorialOverlay');
+            showElement('pauseOverlay');
+            const pauseSettingsBtn = document.getElementById('pauseSettingsBtn');
+            if (pauseSettingsBtn) pauseSettingsBtn.classList.add('tutorial-highlight');
+        }
+
         function handleEscapeBackAction() {
             if (isElementVisible('countdownOverlay')) return;
 
@@ -4879,6 +5526,7 @@
             }
 
             if (isElementVisible('playSelectOverlay') ||
+                isElementVisible('libraryOverlay') ||
                 isElementVisible('levelsOverlay') ||
                 isElementVisible('tutorialOverlay') ||
                 isElementVisible('gameOverOverlay') ||
@@ -4898,15 +5546,19 @@
             gameState.tutorialStep = 0;
             gameState.tutorialOverlayActive = false;
             gameState.tutorialFallingPromptDone = false;
+            gameState.tutorialAwaitEsc = false;
+            gameState.tutorialAwaitSettingsClick = false;
+            clearTutorialSettingsHighlight();
             gameState.lastJudgement = '';
             gameState.judgementTimer = 0;
             const judgementEl = document.getElementById('judgementDisplay');
             if (judgementEl) {
                 judgementEl.textContent = '';
-                judgementEl.classList.remove('show', 'perfect', 'great', 'allright');
+                judgementEl.classList.remove('show', 'perfect', 'great', 'allright', 'oof');
             }
             resetComboDisplay();
             hideElement('playSelectOverlay');
+            hideElement('libraryOverlay');
             hideElement('levelsOverlay');
             hideElement('shopOverlay');
             hideElement('settingsOverlay');
@@ -4925,6 +5577,283 @@
         function showPlaySelect() {
             hideElement('menuOverlay');
             showElement('playSelectOverlay');
+            clearPlaySelectHint();
+        }
+
+        function setPlaySelectHint(mode) {
+            const hintEl = document.getElementById('playSelectHint');
+            if (!hintEl) return;
+
+            if (mode === 'freeplay') {
+                hintEl.textContent = 'Freestyle madness: no schedule, pure reflex and combo chasing.';
+            } else if (mode === 'tutorial') {
+                hintEl.textContent = 'First run? Start here and become a tile-sniping machine in minutes.';
+            } else if (mode === 'library') {
+                hintEl.textContent = 'Jump into your song library and play built-in levels or uploaded MIDI tracks.';
+            } else {
+                hintEl.textContent = '';
+            }
+
+            if (hintEl.textContent) {
+                hintEl.classList.add('active');
+            } else {
+                hintEl.classList.remove('active');
+            }
+        }
+
+        function clearPlaySelectHint() {
+            const hintEl = document.getElementById('playSelectHint');
+            if (!hintEl) return;
+            hintEl.classList.remove('active');
+            hintEl.textContent = '';
+        }
+
+        function showLibraryLevels() {
+            hideElement('menuOverlay');
+            hideElement('playSelectOverlay');
+            hideElement('levelCompleteOverlay');
+            hideElement('midiAnalysisOverlay');
+            resetMenuInteractionState();
+            drawGame();
+            showElement('libraryOverlay');
+            ensureBitMidiLibraryLoaded();
+        }
+
+        function closeLibraryLevels() {
+            hideElement('libraryOverlay');
+            showElement('playSelectOverlay');
+            clearPlaySelectHint();
+        }
+
+        function libraryTitleFromPageUrl(url) {
+            try {
+                const pathname = new URL(url).pathname;
+                const slug = pathname.replace(/^\//, '').replace(/\/$/, '');
+                if (!slug) return 'Unknown track';
+                const decoded = decodeURIComponent(slug).replace(/-mid$/i, '.mid');
+                return decoded.replace(/-/g, ' ');
+            } catch (err) {
+                return 'Unknown track';
+            }
+        }
+
+        function parseXmlLocTags(xmlText) {
+            const locs = [];
+            const pattern = /<loc>(.*?)<\/loc>/gi;
+            let match;
+            while ((match = pattern.exec(xmlText)) !== null) {
+                locs.push(match[1].trim());
+            }
+            return locs;
+        }
+
+        async function fetchTextWithCorsFallbacks(url) {
+            const withoutProtocol = url.replace(/^https?:\/\//i, '');
+            const candidates = [
+                url,
+                `https://r.jina.ai/http://${withoutProtocol}`,
+                `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+            ];
+
+            let lastError = null;
+            for (const candidate of candidates) {
+                try {
+                    const response = await fetch(candidate, { cache: 'no-store' });
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    const text = await response.text();
+                    if (text && text.length > 0) return text;
+                    throw new Error('Empty response');
+                } catch (err) {
+                    lastError = err;
+                }
+            }
+
+            throw lastError || new Error('Failed to fetch remote resource');
+        }
+
+        function updateLibraryStatus(message) {
+            const status = document.getElementById('libraryStatus');
+            if (!status) return;
+            status.textContent = message;
+        }
+
+        function renderBitMidiResults() {
+            const results = document.getElementById('libraryResults');
+            if (!results) return;
+            results.innerHTML = '';
+
+            if (bitMidiLibraryState.loading) {
+                updateLibraryStatus('Loading BitMidi catalog...');
+                return;
+            }
+
+            if (bitMidiLibraryState.error) {
+                updateLibraryStatus(bitMidiLibraryState.error);
+                return;
+            }
+
+            const filtered = bitMidiLibraryState.filteredEntries;
+            if (filtered.length === 0) {
+                updateLibraryStatus(bitMidiLibraryState.loaded ? 'No matches found for this search.' : 'No library data yet.');
+                return;
+            }
+
+            const visibleEntries = filtered.slice(0, LIBRARY_MAX_RESULTS);
+            const summaryText = filtered.length > LIBRARY_MAX_RESULTS
+                ? `Showing first ${LIBRARY_MAX_RESULTS} of ${filtered.length} matches`
+                : `${filtered.length} match${filtered.length === 1 ? '' : 'es'}`;
+            updateLibraryStatus(summaryText);
+
+            for (const entry of visibleEntries) {
+                const row = document.createElement('div');
+                row.className = 'library-item';
+
+                const title = document.createElement('span');
+                title.className = 'library-item-title';
+                title.textContent = entry.title;
+
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'button small';
+                downloadBtn.textContent = 'Download';
+                downloadBtn.addEventListener('click', () => downloadBitMidiEntry(entry, downloadBtn));
+
+                row.appendChild(title);
+                row.appendChild(downloadBtn);
+                results.appendChild(row);
+            }
+        }
+
+        function applyLibrarySearch(queryText) {
+            const q = (queryText || '').trim().toLowerCase();
+            bitMidiLibraryState.query = q;
+            if (!q) {
+                bitMidiLibraryState.filteredEntries = bitMidiLibraryState.entries.slice();
+                renderBitMidiResults();
+                return;
+            }
+
+            const tokens = q.split(/\s+/g).filter(Boolean);
+            bitMidiLibraryState.filteredEntries = bitMidiLibraryState.entries.filter((entry) => {
+                const title = entry.titleLower;
+                return tokens.every((token) => title.includes(token));
+            });
+            renderBitMidiResults();
+        }
+
+        function runLibrarySearch() {
+            const input = document.getElementById('librarySearchInput');
+            if (!input) return;
+            applyLibrarySearch(input.value);
+        }
+
+        function extractBitMidiDownloadUrl(pageHtml) {
+            const absoluteMatch = pageHtml.match(/https?:\/\/bitmidi\.com\/uploads\/\d+\.mid/gi);
+            if (absoluteMatch && absoluteMatch.length > 0) return absoluteMatch[0];
+
+            const relativeMatch = pageHtml.match(/\/uploads\/\d+\.mid/gi);
+            if (relativeMatch && relativeMatch.length > 0) {
+                return `https://bitmidi.com${relativeMatch[0]}`;
+            }
+
+            return null;
+        }
+
+        function downloadFromUrl(url, filename) {
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = filename;
+            anchor.target = '_blank';
+            anchor.rel = 'noopener noreferrer';
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+        }
+
+        async function downloadBitMidiEntry(entry, buttonEl) {
+            if (!entry) return;
+            if (buttonEl) {
+                buttonEl.disabled = true;
+                buttonEl.textContent = 'Loading...';
+            }
+
+            try {
+                updateLibraryStatus(`Resolving download link for ${entry.title}...`);
+                const pageHtml = await fetchTextWithCorsFallbacks(entry.pageUrl);
+                const midiUrl = extractBitMidiDownloadUrl(pageHtml);
+                if (!midiUrl) throw new Error('No MIDI download URL found on page.');
+
+                downloadFromUrl(midiUrl, entry.title);
+                updateLibraryStatus(`Download started: ${entry.title}`);
+            } catch (err) {
+                const message = err && err.message ? err.message : 'Unknown error';
+                updateLibraryStatus(`Download failed: ${message}`);
+            } finally {
+                if (buttonEl) {
+                    buttonEl.disabled = false;
+                    buttonEl.textContent = 'Download';
+                }
+            }
+        }
+
+        async function loadBitMidiCatalog() {
+            bitMidiLibraryState.loading = true;
+            bitMidiLibraryState.error = '';
+            renderBitMidiResults();
+
+            try {
+                const sitemapIndexText = await fetchTextWithCorsFallbacks(BITMIDI_SITEMAP_INDEX_URL);
+                let sitemapUrls = parseXmlLocTags(sitemapIndexText).filter((url) => /sitemap-\d+\.xml$/i.test(url));
+                if (sitemapUrls.length === 0) {
+                    sitemapUrls = BITMIDI_FALLBACK_SITEMAPS.slice();
+                }
+
+                const uniquePages = new Map();
+                for (const sitemapUrl of sitemapUrls) {
+                    const sitemapText = await fetchTextWithCorsFallbacks(sitemapUrl);
+                    const urls = parseXmlLocTags(sitemapText);
+                    for (const url of urls) {
+                        if (!/^https:\/\/bitmidi\.com\//i.test(url)) continue;
+                        if (/sitemap|about|copyright|privacy|dmca|contact|random|discord|related|uploads\//i.test(url)) continue;
+                        if (!/-mid\/?$/i.test(url)) continue;
+                        if (!uniquePages.has(url)) {
+                            const title = libraryTitleFromPageUrl(url);
+                            uniquePages.set(url, {
+                                pageUrl: url,
+                                title,
+                                titleLower: title.toLowerCase()
+                            });
+                        }
+                    }
+                }
+
+                bitMidiLibraryState.entries = Array.from(uniquePages.values()).sort((a, b) => a.title.localeCompare(b.title));
+                bitMidiLibraryState.filteredEntries = bitMidiLibraryState.entries.slice();
+                bitMidiLibraryState.loaded = true;
+            } catch (err) {
+                const message = err && err.message ? err.message : 'Unable to load BitMidi catalog right now.';
+                bitMidiLibraryState.error = `Could not load BitMidi library: ${message}`;
+            } finally {
+                bitMidiLibraryState.loading = false;
+                renderBitMidiResults();
+            }
+        }
+
+        async function ensureBitMidiLibraryLoaded() {
+            const input = document.getElementById('librarySearchInput');
+            if (input && !input.dataset.bound) {
+                input.addEventListener('input', () => applyLibrarySearch(input.value));
+                input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') runLibrarySearch();
+                });
+                input.dataset.bound = '1';
+            }
+
+            if (bitMidiLibraryState.loaded || bitMidiLibraryState.loading) {
+                renderBitMidiResults();
+                return;
+            }
+
+            await loadBitMidiCatalog();
         }
         
         function showLevels() {
@@ -5014,21 +5943,45 @@
         }
 
         function getLuckyBoxFlashColor(rarityName) {
-            if (rarityName === 'allright') return '#ff9a2f';
-            if (rarityName === 'great') return '#4da6ff';
+            if (rarityName === 'rare') return '#6ab7ff';
             if (rarityName === 'epic') return '#b86cff';
+            if (rarityName === 'mythic') return '#ff6aa8';
+            if (rarityName === 'legendary') return '#ffb347';
             if (rarityName === 'sigma') return '#ffd447';
             return '#ffd447';
         }
 
-        function rollLuckyBoxRarity() {
-            const totalWeight = LUCKY_BOX_RARITIES.reduce((sum, rarity) => sum + rarity.weight, 0);
+        function rollLuckyBoxThemeDrop() {
+            const totalWeight = LUCKY_BOX_THEME_DROPS.reduce((sum, item) => sum + item.weight, 0);
             let roll = Math.random() * totalWeight;
-            for (const rarity of LUCKY_BOX_RARITIES) {
-                roll -= rarity.weight;
-                if (roll <= 0) return rarity;
+            for (const item of LUCKY_BOX_THEME_DROPS) {
+                roll -= item.weight;
+                if (roll <= 0) return item;
             }
-            return LUCKY_BOX_RARITIES[0];
+            return LUCKY_BOX_THEME_DROPS[0];
+        }
+
+        function unlockThemeFromLuckyBox(themeIndex) {
+            const safeIndex = Number(themeIndex);
+            if (!Number.isInteger(safeIndex)) return false;
+            if (safeIndex <= 0 || safeIndex >= gameState.shop.unlockedThemes.length) return false;
+            const wasUnlocked = !!gameState.shop.unlockedThemes[safeIndex];
+            gameState.shop.unlockedThemes[safeIndex] = true;
+            return !wasUnlocked;
+        }
+
+        function setLuckyBoxResultContent(resultEl, drop, wasNewUnlock, cooldownLabel = '') {
+            if (!resultEl || !drop) return;
+            const itemLine = `${drop.icon} ${drop.name}`;
+            const rarityLine = `<span class="${drop.className}">${drop.rarity.toUpperCase()}</span>`;
+            const statusLine = wasNewUnlock
+                ? '<span style="color:#8cff8c; font-size:12px; display:block; margin-top:4px;">NEW THEME UNLOCKED</span>'
+                : '<span style="color:#c0c0c0; font-size:12px; display:block; margin-top:4px;">ALREADY OWNED</span>';
+            const cooldownLine = cooldownLabel
+                ? `<span style="color:#b8b8b8; font-size:11px; display:block; margin-top:4px;">${cooldownLabel}</span>`
+                : '';
+            resultEl.className = 'lucky-box-result';
+            resultEl.innerHTML = `${itemLine}<br>${rarityLine}${statusLine}${cooldownLine}`;
         }
 
         function getLuckyBoxLastOpenedMs() {
@@ -5093,11 +6046,21 @@
             }
 
             if (canOpen) {
+                luckyBoxLastReward = null;
                 result.className = 'lucky-box-result';
                 result.textContent = 'Press OPEN below';
             } else {
-                result.className = 'lucky-box-result';
-                result.textContent = `Ready in ${formatLuckyBoxRemaining(remainingMs)}`;
+                if (luckyBoxLastReward) {
+                    setLuckyBoxResultContent(
+                        result,
+                        luckyBoxLastReward.drop,
+                        luckyBoxLastReward.wasNewUnlock,
+                        `Ready in ${formatLuckyBoxRemaining(remainingMs)}`
+                    );
+                } else {
+                    result.className = 'lucky-box-result';
+                    result.textContent = `Ready in ${formatLuckyBoxRemaining(remainingMs)}`;
+                }
             }
         }
 
@@ -5112,7 +6075,7 @@
                 return;
             }
 
-            const rarity = rollLuckyBoxRarity();
+            const drop = rollLuckyBoxThemeDrop();
             const openButton = document.getElementById('luckyBoxOpenButton');
             const bigButton = document.getElementById('luckyBoxBigButton');
             const card = document.querySelector('#luckyBoxModal .lucky-box-modal-card');
@@ -5135,7 +6098,7 @@
 
             const flashTimer = setTimeout(() => {
                 if (!card) return;
-                card.style.setProperty('--flash-color', getLuckyBoxFlashColor(rarity.name));
+                card.style.setProperty('--flash-color', getLuckyBoxFlashColor(drop.rarity));
                 card.classList.remove('flash');
                 void card.offsetWidth;
                 card.classList.add('flash');
@@ -5146,10 +6109,14 @@
                 if (card) card.classList.remove('flash');
                 if (bigButton) bigButton.classList.remove('opening');
 
-                result.className = `lucky-box-result ${rarity.className}`;
-                result.textContent = rarity.name.toUpperCase();
+                const wasNewUnlock = unlockThemeFromLuckyBox(drop.themeIndex);
+                luckyBoxLastReward = { drop, wasNewUnlock };
+                setLuckyBoxResultContent(result, drop, wasNewUnlock);
                 setLuckyBoxLastOpenedMs(Date.now());
                 luckyBoxRevealInProgress = false;
+                if (isElementVisible('shopOverlay')) {
+                    switchShopTab('themes');
+                }
                 updateLuckyBoxCooldownUi();
             }, LUCKY_BOX_OPEN_ANIMATION_MS + LUCKY_BOX_FLASH_ANIMATION_MS + 50);
             luckyBoxAnimationTimers.push(revealTimer);
@@ -5167,10 +6134,32 @@
             hideElement('pauseOverlay');
             switchSettingsTab('gameplay');
             showElement('settingsOverlay');
+
+            if (gameState.tutorialMode && gameState.tutorialAwaitSettingsClick) {
+                gameState.tutorialAwaitSettingsClick = false;
+                clearTutorialSettingsHighlight();
+                gameState.tutorialStep = 99;
+                gameState.tutorialOverlayActive = false;
+                const tutorialText = document.getElementById('tutorialText');
+                if (tutorialText) {
+                    tutorialText.innerHTML = `
+                        <h2 style="color: #7ed8ff; margin-bottom: 12px;">Settings Overview</h2>
+                        <p style="margin-top: 10px;">Here you can change keybinds, adjust gameplay and visual settings, tweak audio, or even enable an external MIDI device.</p>
+                    `;
+                }
+                const tutorialBtn = document.querySelector('#tutorialOverlay button');
+                if (tutorialBtn) {
+                    tutorialBtn.style.display = '';
+                    tutorialBtn.disabled = false;
+                    tutorialBtn.textContent = 'Close';
+                }
+                showElement('tutorialOverlay');
+            }
         }
         
         function closeSettings() {
             hideElement('settingsOverlay');
+            clearTutorialSettingsHighlight();
             if (gameState.settingsReturnState === 'pause') {
                 showElement('pauseOverlay');
             } else {
@@ -5403,10 +6392,12 @@
                     { name: 'Vulcano', icon: '🌋' },
                     { name: 'Electric', icon: '⚡' },
                     { name: 'Ice', icon: '❄️' },
-                    { name: 'Galactic', icon: '🌌' },
+                    { name: 'Plants', icon: '🌿' },
                     { name: 'Hell', icon: '💀' },
-                    { name: 'Rainbow', icon: '🌈' },
-                    { name: 'Heaven', icon: '😇' }
+                    { name: 'Galactic', icon: '🌌' },
+                    { name: 'Heaven', icon: '😇' },
+                    { name: 'Gold', icon: '👑' },
+                    { name: 'Rainbow', icon: '🌈' }
                 ],
                 background: [],
                 instruments: [
@@ -5517,6 +6508,10 @@
                         <label>Wave Disabled</label>
                         <button class="button small" onclick="toggleWaveDisabled()">${gameState.settings.waveDisabled ? 'ON' : 'OFF'}</button>
                     </div>
+                    <div class="setting-row">
+                        <label>Performance Mode</label>
+                        <button class="button small" onclick="togglePerformanceMode()">${gameState.settings.performanceModeEnabled ? 'ON' : 'OFF'}</button>
+                    </div>
                 `;
             } else if (tab === 'audio') {
                 content.innerHTML = `
@@ -5588,6 +6583,15 @@
 
         function toggleWaveDisabled() {
             gameState.settings.waveDisabled = !gameState.settings.waveDisabled;
+            updateSideWaveEnabledState();
+            switchSettingsTab('visuals');
+        }
+
+        function togglePerformanceMode() {
+            gameState.settings.performanceModeEnabled = !gameState.settings.performanceModeEnabled;
+            if (gameState.settings.performanceModeEnabled) {
+                gameState.keyParticles.length = 0;
+            }
             updateSideWaveEnabledState();
             switchSettingsTab('visuals');
         }
@@ -6186,6 +7190,9 @@
             gameState.useMidiSchedule = true;
             gameState.tutorialOverlayActive = false;
             gameState.tutorialFallingPromptDone = false;
+            gameState.tutorialAwaitEsc = false;
+            gameState.tutorialAwaitSettingsClick = false;
+            clearTutorialSettingsHighlight();
 
             const tutorialText = document.getElementById('tutorialText');
             if (tutorialText) tutorialText.innerHTML = '';
@@ -6209,13 +7216,27 @@
                 <h2 style="color: #ffff00; margin-bottom: 15px; animation: slideDown 0.8s ease-out;">Welcome to Fallin' Keys!</h2>
                 <p style="margin-top: 15px;">Learn how to play in this quick tutorial.</p>
             `;
-            document.querySelector('#tutorialOverlay button').textContent = 'Start Tutorial';
+            const tutorialBtn = document.querySelector('#tutorialOverlay button');
+            if (tutorialBtn) {
+                tutorialBtn.style.display = '';
+                tutorialBtn.disabled = false;
+                tutorialBtn.textContent = 'Start Tutorial';
+            }
             showElement('tutorialOverlay');
         }
         
         function continueTutorial() {
             if (gameState.tutorialOverlayActive) {
                 gameState.tutorialOverlayActive = false;
+                hideElement('tutorialOverlay');
+                return;
+            }
+
+            if (gameState.tutorialMode && gameState.tutorialAwaitEsc && gameState.state === 'tutorial-finish') {
+                return;
+            }
+
+            if (gameState.tutorialMode && gameState.tutorialStep === 99) {
                 hideElement('tutorialOverlay');
                 return;
             }
@@ -6232,11 +7253,9 @@
                 gameState.tutorialMode = false;
                 showMenu();
             } else {
-                // Intermediate steps or unknown - go back to menu
+                // Intermediate/unknown steps: just close overlay and keep current flow.
                 hideElement('tutorialOverlay');
-                hideElement('pauseOverlay');
-                gameState.tutorialMode = false;
-                showMenu();
+                return;
             }
         }
         
@@ -6521,7 +7540,7 @@
             gameState.judgementTimer = 0;
             const judgementEl = document.getElementById('judgementDisplay');
             judgementEl.textContent = '';
-            judgementEl.classList.remove('show', 'perfect', 'great', 'allright');
+            judgementEl.classList.remove('show', 'perfect', 'great', 'allright', 'oof');
             document.getElementById('comboMultiplier').classList.remove('show', 'perfect-outline');
             renderLives();
             
@@ -6613,6 +7632,12 @@
         
         function endGame() {
             gameState.state = 'gameover';
+            gameState.pressedKeys.clear();
+            gameState.keysCurrentlyPressed.clear();
+            gameState.midiNotesCurrentlyPressed.clear();
+            gameState.pressedColumnCounts = Array(NUM_COLUMNS).fill(0);
+            forceClearSideWaveVisualState();
+            updateSideWaveGameplayState();
             stopAllSounds();
             resetComboDisplay();
             
@@ -6648,19 +7673,23 @@
             
             // Tutorial completion - show tutorial complete screen
             if (gameState.tutorialMode) {
+                gameState.tutorialAwaitEsc = true;
+                gameState.tutorialAwaitSettingsClick = false;
+                gameState.tutorialStep = 98;
+                gameState.tutorialOverlayActive = false;
                 document.getElementById('tutorialText').innerHTML = `
-                    <h2 style="color: #00ff00; margin-bottom: 15px;">Tutorial Complete!</h2>
-                    <p style="margin-top: 10px;">You've learned the basics.</p>
-                    <p style="margin-top: 15px;"><b>Tips:</b></p>
-                    <p>&bull; Hit tiles when they reach the bar</p>
-                    <p>&bull; Hold long tiles until they pass</p>
-                    <p>&bull; Build combos for higher scores!</p>
+                    <h2 style="color: #00ff00; margin-bottom: 15px;">Nice! Tutorial Notes Cleared</h2>
+                    <p style="margin-top: 10px;">Press <b>ESC</b> now to open the pause menu.</p>
                 `;
-                document.querySelector('#tutorialOverlay button').textContent = 'Back to Menu';
-                gameState.tutorialStep = 99;
+                const tutorialBtn = document.querySelector('#tutorialOverlay button');
+                if (tutorialBtn) {
+                    tutorialBtn.style.display = 'none';
+                    tutorialBtn.disabled = true;
+                }
                 showElement('tutorialOverlay');
                 document.getElementById('hud').style.display = 'none';
                 document.getElementById('pauseBtn').style.display = 'none';
+                gameState.state = 'tutorial-finish';
                 return;
             }
             
@@ -6750,7 +7779,7 @@
             gameState.pressedKeys.add(column);
             spawnKeyParticles(column);
 
-            if (gameState.state === 'playing' && !gameState.settings.waveDisabled) {
+            if (gameState.state === 'playing' && !isWaveRuntimeDisabled()) {
                 if (sideWaveLeftEl) sideWaveLeftEl.classList.add('active');
                 if (sideWaveRightEl) sideWaveRightEl.classList.add('active');
             }
@@ -6789,11 +7818,17 @@
                 gameState.pressedKeys.delete(column);
             }
 
-            if (gameState.state === 'playing' && !gameState.settings.waveDisabled) {
-                if (!hasActiveWaveInput() && sideWaveState.activeBursts === 0) {
-                    clearSideWaveHoldVisual();
-                    if (sideWaveLeftEl) sideWaveLeftEl.classList.remove('active');
-                    if (sideWaveRightEl) sideWaveRightEl.classList.remove('active');
+            if (gameState.state === 'playing' && !isWaveRuntimeDisabled()) {
+                if (!hasPersistentWaveInput()) {
+                    clearSideWaveHoldVisual(true);
+                    if (sideWaveState.activeBursts === 0) {
+                        setTimeout(() => {
+                            if (!hasPersistentWaveInput() && sideWaveState.activeBursts === 0) {
+                                if (sideWaveLeftEl) sideWaveLeftEl.classList.remove('active');
+                                if (sideWaveRightEl) sideWaveRightEl.classList.remove('active');
+                            }
+                        }, SIDE_WAVE_HOLD_RELEASE_MS);
+                    }
                 }
             }
             
@@ -7281,7 +8316,12 @@
                     <p style="margin-top: 12px;">Press the matching key when they reach the white bar.</p>
                     <p style="margin-top: 16px;"><b>Press space to continue</b></p>
                 `;
-                document.querySelector('#tutorialOverlay button').textContent = 'Continue';
+                const tutorialBtn = document.querySelector('#tutorialOverlay button');
+                if (tutorialBtn) {
+                    tutorialBtn.style.display = '';
+                    tutorialBtn.disabled = false;
+                    tutorialBtn.textContent = 'Continue';
+                }
                 showElement('tutorialOverlay');
             }
             
@@ -7324,6 +8364,14 @@
         }
         
         document.addEventListener('keydown', (e) => {
+            const target = e.target;
+            const isTextInputTarget = !!(target && (
+                target.tagName === 'INPUT' ||
+                target.tagName === 'TEXTAREA' ||
+                target.isContentEditable
+            ));
+            const blockGameplayKeyCapture = isElementVisible('libraryOverlay') || isTextInputTarget;
+
             // Get column from key (try e.code first, then fallback to keyCode)
             const column = getColumnFromKeyboardEvent(e);
 
@@ -7350,23 +8398,28 @@
             }
 
             // Prevent default for game keys
-            if (column !== undefined) {
+            if (column !== undefined && !blockGameplayKeyCapture) {
                 e.preventDefault();
             }
             
             // Escape for back/pause
             if (e.code === 'Escape' || e.keyCode === 27) {
                 e.preventDefault();
+                if (gameState.tutorialMode && gameState.tutorialAwaitEsc && gameState.state === 'tutorial-finish') {
+                    enterTutorialSettingsStepFromEsc();
+                    return;
+                }
                 handleEscapeBackAction();
                 return;
             }
             
-            if (column !== undefined) {
+            if (column !== undefined && !blockGameplayKeyCapture) {
                 handleKeyPress(column);
             }
         });
         
         document.addEventListener('keyup', (e) => {
+            if (isElementVisible('libraryOverlay')) return;
             const column = getColumnFromKeyboardEvent(e);
             
             if (column !== undefined) {
