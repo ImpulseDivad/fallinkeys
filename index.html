@@ -582,9 +582,10 @@
         }
         #shopOverlay .tabs {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 6px;
-            width: 280px;
+            width: min(280px, 100%);
+            margin: 0 auto 20px;
         }
         #shopOverlay .tabs .tab {
             min-width: 0;
@@ -827,6 +828,11 @@
                 <span class="hover-subtitle">Fast notes, no mercy</span>
                 <span class="stars" id="level5Stars">&#9734;&#9734;&#9734;</span>
             </button>
+            <button class="button level-btn has-hover-subtitle" id="level6Btn" onclick="startLevel(6)">
+                Level 6: Pipidiw
+                <span class="hover-subtitle">Unbeatable?</span>
+                <span class="stars" id="level6Stars">&#9734;&#9734;&#9734;</span>
+            </button>
             <div class="upload-area" onclick="document.getElementById('midiFileInput').click()">+</div>
             <input type="file" id="midiFileInput" accept=".mid,.midi" onchange="handleMidiUpload(event)">
             <p style="font-size: 12px; color: #888; margin-bottom: 10px;">Upload MIDI file</p>
@@ -839,7 +845,6 @@
             <h3>Shop</h3>
             <div class="tabs">
                 <button class="button tab active" id="shopThemesTab" onclick="switchShopTab('themes')">Themes</button>
-                <button class="button tab" id="shopBgTab" onclick="switchShopTab('background')">Background</button>
                 <button class="button tab" id="shopInstTab" onclick="switchShopTab('instruments')">Instruments</button>
             </div>
             <div class="settings-content" id="shopContent">
@@ -878,6 +883,26 @@
             </div>
             <div class="settings-content" id="settingsContent"></div>
             <button class="button small" onclick="closeSettings()">Back</button>
+
+            <div class="lucky-box-modal hidden" id="redeemCodeModal" onclick="closeRedeemCodeModal()">
+                <div class="lucky-box-modal-card" onclick="event.stopPropagation()">
+                    <h4 style="margin-bottom: 10px;">Redeem Code</h4>
+                    <div style="font-size: 12px; color: #bfbfbf; margin-bottom: 8px;">Enter your code below</div>
+                    <input
+                        id="redeemCodeInput"
+                        type="text"
+                        placeholder="Type code here"
+                        autocomplete="off"
+                        style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #444; background: #111; color: #fff; margin-bottom: 10px; box-sizing: border-box;"
+                        onkeydown="if (event.key === 'Enter') redeemCode()"
+                    >
+                    <div id="redeemCodeMessage" style="font-size: 12px; min-height: 18px; color: #cccccc; margin-bottom: 10px;"></div>
+                    <div style="display: flex; gap: 8px; justify-content: center;">
+                        <button class="button small" onclick="redeemCode()">Redeem</button>
+                        <button class="button small" onclick="closeRedeemCodeModal()">Close</button>
+                    </div>
+                </div>
+            </div>
         </div>
         
         <!-- Pause -->
@@ -1062,7 +1087,7 @@
             
             // Settings
             settings: {
-                labelMode: 'keys', // 'keys', 'notes', 'straight'
+                labelMode: 'straight', // 'keys', 'notes', 'straight'
                 cheatsEnabled: false,
                 practiceModeEnabled: false,
                 easyHoldEnabled: false,
@@ -1079,6 +1104,7 @@
                 selectedTheme: 0,
                 selectedBackground: 0,
                 selectedInstrument: 0,
+                bonusStars: 100,
                 spentStars: 0,
                 unlockedThemes: [true, false, false, false, false, false, false, false, false, false, false],
                 unlockedBackgrounds: [true, true, true],
@@ -1086,7 +1112,7 @@
             },
             
             // Level ratings
-            levelRatings: {1: 0, 2: 0, 3: 0, 4: 0, 5: 0},
+            levelRatings: {1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0},
             
             // Tutorial
             tutorialStep: 0,
@@ -6117,10 +6143,12 @@
         }
 
         function getLuckyBoxEarnedStars() {
-            return Object.values(gameState.levelRatings || {}).reduce((sum, stars) => {
+            const levelStars = Object.values(gameState.levelRatings || {}).reduce((sum, stars) => {
                 const safeStars = Number(stars) || 0;
                 return sum + Math.max(0, Math.floor(safeStars));
             }, 0);
+            const bonusStars = Math.max(0, Math.floor(Number(gameState.shop.bonusStars) || 0));
+            return levelStars + bonusStars;
         }
 
         function getLuckyBoxAvailableStars() {
@@ -6219,6 +6247,9 @@
                 setLuckyBoxResultContent(result, drop, wasNewUnlock, `${getLuckyBoxAvailableStars()} stars left`);
                 luckyBoxRevealInProgress = false;
                 updateLuckyBoxCooldownUi();
+                if (isElementVisible('shopOverlay')) {
+                    switchShopTab('themes', true);
+                }
             }, LUCKY_BOX_OPEN_ANIMATION_MS + LUCKY_BOX_FLASH_ANIMATION_MS + 50);
             luckyBoxAnimationTimers.push(revealTimer);
         }
@@ -6273,7 +6304,7 @@
         }
         
         function updateLevelStars() {
-            for (let i = 1; i <= 5; i++) {
+            for (let i = 1; i <= 6; i++) {
                 const stars = gameState.levelRatings[i] || 0;
                 const el = document.getElementById(`level${i}Stars`);
                 if (!el) continue;
@@ -6305,6 +6336,7 @@
             const levelThreeButton = document.getElementById('level3Btn');
             const levelFourButton = document.getElementById('level4Btn');
             const levelFiveButton = document.getElementById('level5Btn');
+            const levelSixButton = document.getElementById('level6Btn');
             const levelsOverlay = document.getElementById('levelsOverlay');
 
             if (!levelOneButton || !levelTwoButton || !levelThreeButton || !levelsOverlay) return;
@@ -6323,17 +6355,21 @@
 
             if (levelFiveButton) levelFiveButton.addEventListener('mouseenter', () => setLevelMenuPreview('descend'));
             if (levelFiveButton) levelFiveButton.addEventListener('focus', () => setLevelMenuPreview('descend'));
+            if (levelSixButton) levelSixButton.addEventListener('mouseenter', () => setLevelMenuPreview(null));
+            if (levelSixButton) levelSixButton.addEventListener('focus', () => setLevelMenuPreview(null));
 
             levelOneButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelThreeButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             if (levelFourButton) levelFourButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             if (levelFiveButton) levelFiveButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
+            if (levelSixButton) levelSixButton.addEventListener('mouseleave', () => setLevelMenuPreview(null));
             levelOneButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelTwoButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelThreeButton.addEventListener('blur', () => setLevelMenuPreview(null));
             if (levelFourButton) levelFourButton.addEventListener('blur', () => setLevelMenuPreview(null));
             if (levelFiveButton) levelFiveButton.addEventListener('blur', () => setLevelMenuPreview(null));
+            if (levelSixButton) levelSixButton.addEventListener('blur', () => setLevelMenuPreview(null));
             levelsOverlay.addEventListener('mouseleave', () => setLevelMenuPreview(null));
         }
 
@@ -6488,8 +6524,10 @@
         // ============================================
         // Shop System
         // ============================================
-        function switchShopTab(tab) {
-            closeLuckyBoxModal();
+        function switchShopTab(tab, keepLuckyBoxOpen = false) {
+            if (!keepLuckyBoxOpen) {
+                closeLuckyBoxModal();
+            }
             document.querySelectorAll('#shopOverlay .tab').forEach(t => t.classList.remove('active'));
             const tabButtonIds = {
                 themes: 'shopThemesTab',
@@ -6619,6 +6657,10 @@
                         <label>Easy Hold</label>
                         <button class="button small" onclick="toggleEasyHold()">${gameState.settings.easyHoldEnabled ? 'ON' : 'OFF'}</button>
                     </div>
+                    <div class="setting-row">
+                        <label>Redeem Code</label>
+                        <button class="button small" onclick="openRedeemCodeModal()">Open</button>
+                    </div>
                 `;
             } else if (tab === 'visuals') {
                 content.innerHTML = `
@@ -6696,6 +6738,54 @@
         function toggleEasyHold() {
             gameState.settings.easyHoldEnabled = !gameState.settings.easyHoldEnabled;
             switchSettingsTab('gameplay');
+        }
+
+        function openRedeemCodeModal() {
+            const modal = document.getElementById('redeemCodeModal');
+            const input = document.getElementById('redeemCodeInput');
+            const message = document.getElementById('redeemCodeMessage');
+            if (!modal) return;
+            if (message) {
+                message.textContent = '';
+                message.style.color = '#cccccc';
+            }
+            if (input) {
+                input.value = '';
+            }
+            modal.classList.remove('hidden');
+            if (input) input.focus();
+        }
+
+        function closeRedeemCodeModal() {
+            const modal = document.getElementById('redeemCodeModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function redeemCode() {
+            const input = document.getElementById('redeemCodeInput');
+            const message = document.getElementById('redeemCodeMessage');
+            if (!input || !message) return;
+
+            const code = String(input.value || '').trim().toLowerCase();
+            if (!code) {
+                message.style.color = '#ff9b9b';
+                message.textContent = 'Enter a code first.';
+                return;
+            }
+
+            if (code === 'hacker') {
+                gameState.shop.unlockedThemes = gameState.shop.unlockedThemes.map(() => true);
+                message.style.color = '#8cff8c';
+                message.textContent = 'Code accepted! All themes unlocked.';
+
+                if (isElementVisible('shopOverlay')) {
+                    switchShopTab('themes');
+                }
+                return;
+            }
+
+            message.style.color = '#ff9b9b';
+            message.textContent = 'Invalid code.';
         }
         
         function toggleBlueHit() {
@@ -7454,7 +7544,8 @@
                 // Keep legacy names, but prefer explicit renamed files first.
                 3: ['Hades Desert (2).mid', 'Hades Desert.mid', 'hades desert.mid', 'Hades Desert.midi'],
                 4: ['Sad Tunnel.mid', 'sad tunnel.mid', 'Sad Tunnel.midi'],
-                5: ['Descend.mid', 'descend.mid', 'Descend.midi', 'Time Rush.mid', 'time rush.mid', 'Time Rush.midi']
+                5: ['Descend.mid', 'descend.mid', 'Descend.midi', 'Time Rush.mid', 'time rush.mid', 'Time Rush.midi'],
+                6: ['Pipidiw.mid', 'pipidiw.mid', 'Pipidiw.midi']
             };
 
             const levelDrumBaseFileNames = {
@@ -7462,7 +7553,8 @@
                 2: ['green hills drums.mid'],
                 3: ['hades desert drums (2).mid', 'hades desert drums.mid', 'Hades Desert Drums.mid', 'hades desert drums.midi'],
                 4: ['sad tunnel drums.mid', 'Sad Tunnel Drums.mid', 'sad tunnel drums.midi'],
-                5: ['descend drums.mid', 'Descend Drums.mid', 'descend drums.midi', 'time rush drums.mid', 'Time Rush Drums.mid', 'time rush drums.midi']
+                5: ['descend drums.mid', 'Descend Drums.mid', 'descend drums.midi', 'time rush drums.mid', 'Time Rush Drums.mid', 'time rush drums.midi'],
+                6: []
             };
             
             const levelFileNameCandidates = buildMidiCandidatesFromBaseNames(levelBaseFileNames[levelNum], 12);
