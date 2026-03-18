@@ -1249,6 +1249,16 @@
             4: ['SFX/el. guitar fx.mid']
         };
 
+        const MENU_BGM_TRACKS = [
+            'SFX/PIPDIW.wav',
+            'SFX/Praty.wav',
+            'SFX/alya.wav',
+            'SFX/FJEY.wav',
+            'SFX/waltz of the death.wav'
+        ];
+        let menuBgmAudio = null;
+        let menuBgmTrackIndex = -1;
+
         const instrumentPreviewState = {
             cache: {},
             timers: [],
@@ -1958,6 +1968,95 @@
             const target = gameState.settings.soundEnabled ? 0.72 : 0;
             gameState.audioMasterGain.gain.cancelScheduledValues(now);
             gameState.audioMasterGain.gain.setTargetAtTime(target, now, 0.01);
+        }
+
+        function isMenuOverlayVisible() {
+            return (
+                isElementVisible('menuOverlay') ||
+                isElementVisible('playSelectOverlay') ||
+                isElementVisible('levelsOverlay') ||
+                isElementVisible('shopOverlay') ||
+                isElementVisible('settingsOverlay')
+            );
+        }
+
+        function shouldPlayMenuBgm() {
+            return !!gameState.settings.soundEnabled &&
+                isMenuOverlayVisible() &&
+                gameState.state !== 'playing' &&
+                gameState.state !== 'paused';
+        }
+
+        function ensureMenuBgmAudioElement() {
+            if (menuBgmAudio) return menuBgmAudio;
+
+            const audio = new Audio();
+            audio.preload = 'auto';
+            audio.loop = false;
+            audio.addEventListener('ended', () => {
+                if (shouldPlayMenuBgm()) {
+                    startMenuBackgroundMusic(true);
+                }
+            });
+            menuBgmAudio = audio;
+            return audio;
+        }
+
+        function pickRandomMenuBgmIndex(excludeIndex = -1) {
+            if (MENU_BGM_TRACKS.length <= 1) return 0;
+            let idx = excludeIndex;
+            while (idx === excludeIndex) {
+                idx = Math.floor(Math.random() * MENU_BGM_TRACKS.length);
+            }
+            return idx;
+        }
+
+        function getMenuBgmVolume() {
+            const base = Number(gameState.settings.volume) || 0;
+            return Math.max(0, Math.min(1, base * 0.45));
+        }
+
+        function stopMenuBackgroundMusic() {
+            if (!menuBgmAudio) return;
+            try {
+                menuBgmAudio.pause();
+                menuBgmAudio.currentTime = 0;
+                menuBgmAudio.removeAttribute('src');
+                menuBgmAudio.load();
+            } catch (_) {
+                // Ignore media stop issues.
+            }
+            menuBgmTrackIndex = -1;
+        }
+
+        function startMenuBackgroundMusic(forceRandomTrack = false) {
+            if (!shouldPlayMenuBgm() || MENU_BGM_TRACKS.length === 0) {
+                stopMenuBackgroundMusic();
+                return;
+            }
+
+            const audio = ensureMenuBgmAudioElement();
+            const needsTrack = forceRandomTrack || menuBgmTrackIndex < 0 || !audio.src;
+            if (needsTrack) {
+                menuBgmTrackIndex = pickRandomMenuBgmIndex(menuBgmTrackIndex);
+                audio.src = encodeURI(MENU_BGM_TRACKS[menuBgmTrackIndex]);
+            }
+
+            audio.volume = getMenuBgmVolume();
+            const playPromise = audio.play();
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(() => {
+                    // Autoplay may be blocked before first interaction.
+                });
+            }
+        }
+
+        function updateMenuBackgroundMusic() {
+            if (shouldPlayMenuBgm()) {
+                startMenuBackgroundMusic(false);
+            } else {
+                stopMenuBackgroundMusic();
+            }
         }
 
         function getRapidNoteAttenuation(column, noteNum = null) {
@@ -5738,12 +5837,14 @@
             document.getElementById('pauseBtn').style.display = 'none';
             document.getElementById('infoText').style.display = 'none';
             startMenuDemoLoop();
+            updateMenuBackgroundMusic();
         }
         
         function showPlaySelect() {
             hideElement('menuOverlay');
             showElement('playSelectOverlay');
             clearPlaySelectHint();
+            updateMenuBackgroundMusic();
         }
 
         function setPlaySelectHint(mode) {
@@ -6013,6 +6114,7 @@
             setLevelMenuPreview(null);
             updateRecentUploadsList();
             showElement('levelsOverlay');
+            updateMenuBackgroundMusic();
         }
         
         function updateRecentUploadsList() {
@@ -6037,6 +6139,7 @@
             closeLuckyBoxModal();
             switchShopTab('themes');
             showElement('shopOverlay');
+            updateMenuBackgroundMusic();
         }
 
         function showShopFromPause() {
@@ -6045,6 +6148,7 @@
             closeLuckyBoxModal();
             switchShopTab('themes');
             showElement('shopOverlay');
+            updateMenuBackgroundMusic();
         }
 
         function closeShop() {
@@ -6055,6 +6159,7 @@
             } else {
                 showElement('menuOverlay');
             }
+            updateMenuBackgroundMusic();
         }
 
         function openLuckyBox() {
@@ -6259,6 +6364,7 @@
             hideElement('menuOverlay');
             switchSettingsTab('gameplay');
             showElement('settingsOverlay');
+            updateMenuBackgroundMusic();
         }
         
         function showSettingsFromPause() {
@@ -6287,6 +6393,7 @@
                 }
                 showElement('tutorialOverlay');
             }
+            updateMenuBackgroundMusic();
         }
         
         function closeSettings() {
@@ -6301,6 +6408,7 @@
             } else {
                 showElement('menuOverlay');
             }
+            updateMenuBackgroundMusic();
         }
         
         function updateLevelStars() {
@@ -6811,6 +6919,7 @@
         function toggleSound() {
             gameState.settings.soundEnabled = !gameState.settings.soundEnabled;
             syncMasterVolume();
+            updateMenuBackgroundMusic();
             switchSettingsTab('audio');
         }
         
@@ -6819,6 +6928,9 @@
             const clamped = Number.isFinite(parsed) ? Math.max(0, Math.min(100, parsed)) : 50;
             gameState.settings.volume = clamped / 100;
             syncMasterVolume();
+            if (menuBgmAudio) {
+                menuBgmAudio.volume = getMenuBgmVolume();
+            }
         }
         
         function toggleMetronome() {
@@ -7731,6 +7843,7 @@
             // Start a new game without countdown (countdown only on resume)
             gameState.state = 'playing';
             updateSideWaveGameplayState();
+            updateMenuBackgroundMusic();
             gameState.maxLives = gameState.customUploadRun ? 5 : 3;
             gameState.score = 0;
             gameState.combo = 0;
@@ -7819,6 +7932,7 @@
         function startGameplay() {
             gameState.state = 'playing';
             updateSideWaveGameplayState();
+            updateMenuBackgroundMusic();
             document.getElementById('pauseBtn').style.display = 'block';
             gameState.gameLoopToken++;
             gameLoop(gameState.gameLoopToken);
@@ -7830,6 +7944,7 @@
             updateSideWaveGameplayState();
             stopAllSounds();
             showElement('pauseOverlay');
+            updateMenuBackgroundMusic();
         }
         
         function resumeGame() {
@@ -7844,6 +7959,7 @@
             runCountdown(() => {
                 gameState.state = 'playing';
                 updateSideWaveGameplayState();
+                updateMenuBackgroundMusic();
                 gameState.gameLoopToken++;
                 gameLoop(gameState.gameLoopToken);
             });
@@ -7853,6 +7969,7 @@
             stopAllSounds();
             hideElement('pauseOverlay');
             showMenu();
+            updateMenuBackgroundMusic();
         }
         
         function stopAllSounds() {
@@ -8795,6 +8912,7 @@
         setupLevelHoverBackgrounds();
         drawGame();
         startMenuDemoLoop();
+        updateMenuBackgroundMusic();
     </script>
 </body>
 </html>
