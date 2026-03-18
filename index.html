@@ -6158,6 +6158,10 @@
         }
         
         function closeSettings() {
+            if (gameState.tutorialMode && gameState.tutorialStep === 99) {
+                showMenu();
+                return;
+            }
             hideElement('settingsOverlay');
             clearTutorialSettingsHighlight();
             if (gameState.settingsReturnState === 'pause') {
