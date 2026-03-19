@@ -7700,7 +7700,9 @@
                 // Keep legacy names, but prefer explicit renamed files first.
                 3: ['Hades Desert (2).mid', 'Hades Desert.mid', 'hades desert.mid', 'Hades Desert.midi'],
                 4: ['Sad Tunnel.mid', 'sad tunnel.mid', 'Sad Tunnel.midi'],
-                5: ['Time Rush.mid', 'time rush.mid', 'Time Rush.midi', 'Descend.mid', 'descend.mid', 'Descend.midi'],
+                // Level 5 (Descend button) currently maps to Time Rush assets in production.
+                // Keep this canonical to avoid HTML fallback payloads from non-existing Descend variants.
+                5: ['Time Rush.mid'],
                 6: ['Pipidiw.mid', 'pipidiw.mid', 'Pipidiw.midi']
             };
 
@@ -7709,7 +7711,7 @@
                 2: ['green hills drums.mid'],
                 3: ['hades desert drums (2).mid', 'hades desert drums.mid', 'Hades Desert Drums.mid', 'hades desert drums.midi'],
                 4: ['sad tunnel drums.mid', 'Sad Tunnel Drums.mid', 'sad tunnel drums.midi'],
-                5: ['descend drums.mid', 'Descend Drums.mid', 'descend drums.midi', 'time rush drums.mid', 'Time Rush Drums.mid', 'time rush drums.midi'],
+                5: [],
                 6: []
             };
             
