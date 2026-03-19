@@ -1104,7 +1104,7 @@
                 selectedTheme: 0,
                 selectedBackground: 0,
                 selectedInstrument: 0,
-                bonusStars: 100,
+                bonusStars: 0,
                 spentStars: 0,
                 unlockedThemes: [true, false, false, false, false, false, false, false, false, false, false],
                 unlockedBackgrounds: [true, true, true],
@@ -6203,14 +6203,23 @@
             return '#ffd447';
         }
 
-        function rollLuckyBoxThemeDrop() {
-            const totalWeight = LUCKY_BOX_THEME_DROPS.reduce((sum, item) => sum + item.weight, 0);
+        function getLockedLuckyBoxDrops() {
+            return LUCKY_BOX_THEME_DROPS.filter(item => {
+                const idx = Number(item.themeIndex);
+                return Number.isInteger(idx) && idx > 0 && idx < gameState.shop.unlockedThemes.length && !gameState.shop.unlockedThemes[idx];
+            });
+        }
+
+        function rollLuckyBoxThemeDrop(dropPool = LUCKY_BOX_THEME_DROPS) {
+            if (!Array.isArray(dropPool) || dropPool.length === 0) return null;
+
+            const totalWeight = dropPool.reduce((sum, item) => sum + item.weight, 0);
             let roll = Math.random() * totalWeight;
-            for (const item of LUCKY_BOX_THEME_DROPS) {
+            for (const item of dropPool) {
                 roll -= item.weight;
                 if (roll <= 0) return item;
             }
-            return LUCKY_BOX_THEME_DROPS[0];
+            return dropPool[0];
         }
 
         function unlockThemeFromLuckyBox(themeIndex) {
@@ -6267,7 +6276,9 @@
             if (!result) return;
 
             const availableStars = getLuckyBoxAvailableStars();
-            const canOpen = availableStars >= LUCKY_BOX_STAR_COST && !luckyBoxRevealInProgress;
+            const lockedDrops = getLockedLuckyBoxDrops();
+            const hasUnlockableThemes = lockedDrops.length > 0;
+            const canOpen = hasUnlockableThemes && availableStars >= LUCKY_BOX_STAR_COST && !luckyBoxRevealInProgress;
             const buyLabel = `BUY FOR ${LUCKY_BOX_STAR_COST} STARS`;
 
             if (openButton) {
@@ -6276,7 +6287,11 @@
             }
             if (bigButton) {
                 bigButton.disabled = !canOpen;
-                bigButton.title = luckyBoxRevealInProgress ? 'Buying Lucky Box' : (canOpen ? `Buy Lucky Box for ${LUCKY_BOX_STAR_COST} stars` : `Need ${LUCKY_BOX_STAR_COST} stars`);
+                bigButton.title = luckyBoxRevealInProgress
+                    ? 'Buying Lucky Box'
+                    : (hasUnlockableThemes
+                        ? (canOpen ? `Buy Lucky Box for ${LUCKY_BOX_STAR_COST} stars` : `Need ${LUCKY_BOX_STAR_COST} stars`)
+                        : 'All themes unlocked');
             }
 
             if (luckyBoxRevealInProgress) {
@@ -6294,9 +6309,13 @@
                 );
             } else {
                 result.className = 'lucky-box-result';
-                result.textContent = canOpen
-                    ? `${availableStars} stars available`
-                    : `Need ${LUCKY_BOX_STAR_COST} stars (${availableStars}/${LUCKY_BOX_STAR_COST})`;
+                if (!hasUnlockableThemes) {
+                    result.textContent = 'All themes unlocked';
+                } else {
+                    result.textContent = canOpen
+                        ? `${availableStars} stars available`
+                        : `Need ${LUCKY_BOX_STAR_COST} stars (${availableStars}/${LUCKY_BOX_STAR_COST})`;
+                }
             }
         }
 
@@ -6304,6 +6323,12 @@
             const result = document.getElementById('luckyBoxResult');
             if (!result) return;
             if (luckyBoxRevealInProgress) return;
+
+            const lockedDrops = getLockedLuckyBoxDrops();
+            if (lockedDrops.length === 0) {
+                updateLuckyBoxCooldownUi();
+                return;
+            }
 
             const availableStars = getLuckyBoxAvailableStars();
             if (availableStars < LUCKY_BOX_STAR_COST) {
@@ -6313,7 +6338,12 @@
 
             setLuckyBoxSpentStars(getLuckyBoxSpentStars() + LUCKY_BOX_STAR_COST);
 
-            const drop = rollLuckyBoxThemeDrop();
+            const drop = rollLuckyBoxThemeDrop(lockedDrops);
+            if (!drop) {
+                setLuckyBoxSpentStars(getLuckyBoxSpentStars() - LUCKY_BOX_STAR_COST);
+                updateLuckyBoxCooldownUi();
+                return;
+            }
             const openButton = document.getElementById('luckyBoxOpenButton');
             const bigButton = document.getElementById('luckyBoxBigButton');
             const card = document.querySelector('#luckyBoxModal .lucky-box-modal-card');
@@ -7583,6 +7613,12 @@
             }
         }
         
+        function hasMidiHeader(data) {
+            return data &&
+                data.length >= 4 &&
+                String.fromCharCode(data[0], data[1], data[2], data[3]) === 'MThd';
+        }
+
         async function loadMidiFromCandidates(candidatePaths) {
             let lastError = null;
 
@@ -7593,7 +7629,15 @@
                         throw new Error(`HTTP ${response.status} (${midiPath})`);
                     }
                     const arrayBuffer = await response.arrayBuffer();
-                    return new Uint8Array(arrayBuffer);
+                    const data = new Uint8Array(arrayBuffer);
+
+                    // On some hosts (e.g. SPA fallback routes), missing files can return HTML with HTTP 200.
+                    // Only accept real MIDI payloads so we can continue trying filename variants.
+                    if (!hasMidiHeader(data)) {
+                        throw new Error(`Not a MIDI payload (${midiPath})`);
+                    }
+
+                    return data;
                 } catch (err) {
                     lastError = err;
                 }
@@ -7656,7 +7700,7 @@
                 // Keep legacy names, but prefer explicit renamed files first.
                 3: ['Hades Desert (2).mid', 'Hades Desert.mid', 'hades desert.mid', 'Hades Desert.midi'],
                 4: ['Sad Tunnel.mid', 'sad tunnel.mid', 'Sad Tunnel.midi'],
-                5: ['Descend.mid', 'descend.mid', 'Descend.midi', 'Time Rush.mid', 'time rush.mid', 'Time Rush.midi'],
+                5: ['Time Rush.mid', 'time rush.mid', 'Time Rush.midi', 'Descend.mid', 'descend.mid', 'Descend.midi'],
                 6: ['Pipidiw.mid', 'pipidiw.mid', 'Pipidiw.midi']
             };
 
