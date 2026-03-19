@@ -1258,6 +1258,9 @@
         ];
         let menuBgmAudio = null;
         let menuBgmTrackIndex = -1;
+        let menuBgmConsecutiveFailures = 0;
+        let audioUnlockHandlersAttached = false;
+        let audioUnlockedByGesture = false;
 
         const instrumentPreviewState = {
             cache: {},
@@ -1998,6 +2001,10 @@
                     startMenuBackgroundMusic(true);
                 }
             });
+            audio.addEventListener('error', () => {
+                if (!shouldPlayMenuBgm()) return;
+                startMenuBackgroundMusic(true);
+            });
             menuBgmAudio = audio;
             return audio;
         }
@@ -2027,11 +2034,16 @@
                 // Ignore media stop issues.
             }
             menuBgmTrackIndex = -1;
+            menuBgmConsecutiveFailures = 0;
         }
 
         function startMenuBackgroundMusic(forceRandomTrack = false) {
             if (!shouldPlayMenuBgm() || MENU_BGM_TRACKS.length === 0) {
                 stopMenuBackgroundMusic();
+                return;
+            }
+
+            if (menuBgmConsecutiveFailures >= MENU_BGM_TRACKS.length) {
                 return;
             }
 
@@ -2046,8 +2058,19 @@
             const playPromise = audio.play();
             if (playPromise && typeof playPromise.catch === 'function') {
                 playPromise.catch(() => {
-                    // Autoplay may be blocked before first interaction.
+                    // Autoplay can be blocked or a track can fail to decode.
+                    menuBgmConsecutiveFailures++;
+                    if (menuBgmConsecutiveFailures < MENU_BGM_TRACKS.length) {
+                        startMenuBackgroundMusic(true);
+                    }
                 });
+                playPromise.then(() => {
+                    menuBgmConsecutiveFailures = 0;
+                }).catch(() => {
+                    // Handled above.
+                });
+            } else {
+                menuBgmConsecutiveFailures = 0;
             }
         }
 
@@ -2057,6 +2080,41 @@
             } else {
                 stopMenuBackgroundMusic();
             }
+        }
+
+        async function tryUnlockAudioFromGesture() {
+            if (audioUnlockedByGesture) {
+                updateMenuBackgroundMusic();
+                return;
+            }
+
+            initAudio();
+            if (gameState.audioContext && gameState.audioContext.state === 'suspended') {
+                try {
+                    await gameState.audioContext.resume();
+                } catch (_) {
+                    // Keep trying on future interactions.
+                }
+            }
+
+            if (!gameState.audioContext || gameState.audioContext.state === 'running') {
+                audioUnlockedByGesture = true;
+            }
+
+            updateMenuBackgroundMusic();
+        }
+
+        function attachAudioUnlockHandlers() {
+            if (audioUnlockHandlersAttached) return;
+            audioUnlockHandlersAttached = true;
+
+            const unlockHandler = () => {
+                void tryUnlockAudioFromGesture();
+            };
+
+            ['pointerdown', 'mousedown', 'touchstart', 'keydown'].forEach(eventName => {
+                document.addEventListener(eventName, unlockHandler, { passive: true });
+            });
         }
 
         function getRapidNoteAttenuation(column, noteNum = null) {
@@ -8952,6 +9010,7 @@
         rebuildSideWaveBars();
         updateSideWaveEnabledState();
         updateSideWaveThemeColors();
+        attachAudioUnlockHandlers();
         preloadLevelPreviewImages();
         setupLevelHoverBackgrounds();
         drawGame();
