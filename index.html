@@ -1272,7 +1272,7 @@
         function getSideWaveBarCount() {
             const sideWidth = Math.max(0, (window.innerWidth - SCREEN_WIDTH) / 2);
             if (sideWidth < 24) return 0;
-            return Math.max(6, Math.min(16, Math.floor(sideWidth / 22)));
+            return Math.max(6, Math.min(24, Math.floor(sideWidth / 22)));
         }
 
         function createWaveBar() {
@@ -1337,7 +1337,7 @@
                 sideWaveState.idleAlphaCache.push(-1);
             }
 
-            const layerCount = 3;
+            const layerCount = 4;
             for (let layerIndex = 0; layerIndex < layerCount; layerIndex++) {
                 const leftLayer = document.createElement('div');
                 const rightLayer = document.createElement('div');
