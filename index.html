@@ -787,7 +787,7 @@
             <h1>FALLIN' KEYS</h1>
             <button class="button" onclick="showPlaySelect()">Play</button>
             <button class="button" onclick="showLevels()">Levels</button>
-            <button class="button" onclick="showShop()">Shop</button>
+            <button class="button" id="menuShopBtn" onclick="showShop()">Shop</button>
             <button class="button" onclick="showSettings()">Settings</button>
         </div>
         
@@ -1119,6 +1119,8 @@
             tutorialMode: false,
             tutorialOverlayActive: false,
             tutorialFallingPromptDone: false,
+            tutorialPressPromptActive: false,
+            tutorialPromptColumn: null,
             tutorialAwaitEsc: false,
             tutorialAwaitSettingsClick: false,
             
@@ -1258,6 +1260,7 @@
         ];
         let menuBgmAudio = null;
         let menuBgmTrackIndex = -1;
+        let tutorialShopGuidePending = false;
 
         const instrumentPreviewState = {
             cache: {},
@@ -1268,7 +1271,7 @@
         function getSideWaveBarCount() {
             const sideWidth = Math.max(0, (window.innerWidth - SCREEN_WIDTH) / 2);
             if (sideWidth < 24) return 0;
-            return Math.max(6, Math.min(24, Math.floor(sideWidth / 18)));
+            return Math.max(6, Math.min(16, Math.floor(sideWidth / 22)));
         }
 
         function createWaveBar() {
@@ -1333,7 +1336,7 @@
                 sideWaveState.idleAlphaCache.push(-1);
             }
 
-            const layerCount = 4;
+            const layerCount = 3;
             for (let layerIndex = 0; layerIndex < layerCount; layerIndex++) {
                 const leftLayer = document.createElement('div');
                 const rightLayer = document.createElement('div');
@@ -5753,11 +5756,19 @@
             if (pauseSettingsBtn) pauseSettingsBtn.classList.remove('tutorial-highlight');
         }
 
+        function setTutorialShopHighlight(enabled) {
+            const menuShopBtn = document.getElementById('menuShopBtn');
+            if (!menuShopBtn) return;
+            menuShopBtn.classList.toggle('tutorial-highlight', !!enabled);
+        }
+
         function enterTutorialSettingsStepFromEsc() {
             gameState.tutorialAwaitEsc = false;
             gameState.tutorialAwaitSettingsClick = true;
             gameState.state = 'paused';
             gameState.tutorialOverlayActive = false;
+            gameState.tutorialPressPromptActive = false;
+            gameState.tutorialPromptColumn = null;
             hideElement('tutorialOverlay');
             showElement('pauseOverlay');
             const pauseSettingsBtn = document.getElementById('pauseSettingsBtn');
@@ -5812,9 +5823,12 @@
             gameState.tutorialStep = 0;
             gameState.tutorialOverlayActive = false;
             gameState.tutorialFallingPromptDone = false;
+            gameState.tutorialPressPromptActive = false;
+            gameState.tutorialPromptColumn = null;
             gameState.tutorialAwaitEsc = false;
             gameState.tutorialAwaitSettingsClick = false;
             clearTutorialSettingsHighlight();
+            setTutorialShopHighlight(tutorialShopGuidePending);
             gameState.lastJudgement = '';
             gameState.judgementTimer = 0;
             const judgementEl = document.getElementById('judgementDisplay');
@@ -6139,6 +6153,27 @@
             closeLuckyBoxModal();
             switchShopTab('themes');
             showElement('shopOverlay');
+
+            if (tutorialShopGuidePending) {
+                tutorialShopGuidePending = false;
+                setTutorialShopHighlight(false);
+                const tutorialText = document.getElementById('tutorialText');
+                if (tutorialText) {
+                    tutorialText.innerHTML = `
+                        <h2 style="color: #7ed8ff; margin-bottom: 12px;">Shop Guide</h2>
+                        <p style="margin-top: 10px;">Here you can buy a Lucky Box for <b>2 stars</b> to unlock new themes.</p>
+                        <p style="margin-top: 10px;">You can also switch between unlocked <b>Themes</b> and <b>Instruments</b>.</p>
+                    `;
+                }
+                const tutorialBtn = document.querySelector('#tutorialOverlay button');
+                if (tutorialBtn) {
+                    tutorialBtn.style.display = '';
+                    tutorialBtn.disabled = false;
+                    tutorialBtn.textContent = 'Got it';
+                }
+                showElement('tutorialOverlay');
+            }
+
             updateMenuBackgroundMusic();
         }
 
@@ -6154,6 +6189,9 @@
         function closeShop() {
             closeLuckyBoxModal();
             hideElement('shopOverlay');
+            if (!isElementVisible('menuOverlay')) {
+                setTutorialShopHighlight(false);
+            }
             if (gameState.shopReturnState === 'pause') {
                 showElement('pauseOverlay');
             } else {
@@ -6428,6 +6466,7 @@
         
         function closeSettings() {
             if (gameState.tutorialMode && gameState.tutorialStep === 99) {
+                tutorialShopGuidePending = true;
                 showMenu();
                 return;
             }
@@ -7544,6 +7583,8 @@
             gameState.useMidiSchedule = true;
             gameState.tutorialOverlayActive = false;
             gameState.tutorialFallingPromptDone = false;
+            gameState.tutorialPressPromptActive = false;
+            gameState.tutorialPromptColumn = null;
             gameState.tutorialAwaitEsc = false;
             gameState.tutorialAwaitSettingsClick = false;
             clearTutorialSettingsHighlight();
@@ -7580,6 +7621,10 @@
         }
         
         function continueTutorial() {
+            if (gameState.tutorialPressPromptActive) {
+                return;
+            }
+
             if (gameState.tutorialOverlayActive) {
                 gameState.tutorialOverlayActive = false;
                 hideElement('tutorialOverlay');
@@ -7611,6 +7656,31 @@
                 hideElement('tutorialOverlay');
                 return;
             }
+        }
+
+        function showTutorialPressPrompt(column) {
+            const safeColumn = Number(column);
+            if (!Number.isInteger(safeColumn) || safeColumn < 0 || safeColumn >= NUM_COLUMNS) return;
+
+            const tutorialText = document.getElementById('tutorialText');
+            if (!tutorialText) return;
+
+            const label = getColumnLabel(safeColumn);
+            tutorialText.innerHTML = `
+                <h2 style="color: #ffff00; margin-bottom: 15px;">Press ${label}</h2>
+                <p style="margin-top: 10px;">Hit the matching key when the note touches the white bar.</p>
+            `;
+
+            const tutorialBtn = document.querySelector('#tutorialOverlay button');
+            if (tutorialBtn) {
+                tutorialBtn.style.display = 'none';
+                tutorialBtn.disabled = true;
+            }
+
+            gameState.tutorialOverlayActive = true;
+            gameState.tutorialPressPromptActive = true;
+            gameState.tutorialPromptColumn = safeColumn;
+            showElement('tutorialOverlay');
         }
         
         function hasMidiHeader(data) {
@@ -7913,6 +7983,8 @@
             gameState.cheatsUsedThisRun = !!gameState.settings.cheatsEnabled;
             gameState.tutorialOverlayActive = false;
             gameState.tutorialFallingPromptDone = false;
+            gameState.tutorialPressPromptActive = false;
+            gameState.tutorialPromptColumn = null;
             
             // Reset miss state
             gameState.missPending = false;
@@ -8305,6 +8377,13 @@
                             grantLifeFromHeartNote();
                         }
                         delete gameState.activeHolds[column];
+
+                        if (gameState.tutorialMode && gameState.tutorialPressPromptActive && gameState.tutorialPromptColumn === column) {
+                            gameState.tutorialOverlayActive = false;
+                            gameState.tutorialPressPromptActive = false;
+                            gameState.tutorialPromptColumn = null;
+                            hideElement('tutorialOverlay');
+                        }
                         return;
                     }
 
@@ -8356,6 +8435,13 @@
                     if (tile.isLifeNote) {
                         grantLifeFromHeartNote();
                     }
+                }
+
+                if (gameState.tutorialMode && gameState.tutorialPressPromptActive && gameState.tutorialPromptColumn === column) {
+                    gameState.tutorialOverlayActive = false;
+                    gameState.tutorialPressPromptActive = false;
+                    gameState.tutorialPromptColumn = null;
+                    hideElement('tutorialOverlay');
                 }
             } else {
                 // Wrong key - no tile in hit zone
@@ -8508,6 +8594,7 @@
 
             const tutorialFreezeNotes = gameState.tutorialMode && gameState.tutorialOverlayActive;
             let showTutorialFallingOverlay = false;
+            let tutorialPressPromptTile = null;
 
             const isPracticeMode = gameState.settings.practiceModeEnabled && !gameState.settings.cheatsEnabled;
             let blockingTile = null;
@@ -8591,6 +8678,8 @@
             const cheatAutoplayDelayFrames = Math.max(0, Math.round(CHEAT_AUTOPLAY_DELAY_SECONDS * FPS));
             const cheatAutoplayDelayPx = cheatAutoplayDelayFrames * Math.max(0.1, gameState.tileSpeed);
             const cheatsAutoHitY = BAR_Y + cheatAutoplayDelayPx;
+            const tutorialPromptDelayFrames = Math.max(0, Math.round(0.1 * FPS));
+            const tutorialPromptDelayPx = tutorialPromptDelayFrames * Math.max(0.1, gameState.tileSpeed);
 
             for (let i = gameState.tiles.length - 1; i >= 0; i--) {
                 const tile = gameState.tiles[i];
@@ -8610,6 +8699,20 @@
                     if (centerY >= SCREEN_HEIGHT * 0.5) {
                         gameState.tutorialFallingPromptDone = true;
                         showTutorialFallingOverlay = true;
+                    }
+                }
+
+                if (gameState.tutorialMode &&
+                    gameState.tutorialFallingPromptDone &&
+                    !gameState.tutorialOverlayActive &&
+                    !gameState.tutorialPressPromptActive &&
+                    !tile.hit &&
+                    !tile.missed &&
+                    !tile.holding &&
+                    !tile.tutorialPressPromptShown &&
+                    (tile.y + tile.height) >= (BAR_Y + tutorialPromptDelayPx)) {
+                    if (!tutorialPressPromptTile || tile.y > tutorialPressPromptTile.y) {
+                        tutorialPressPromptTile = tile;
                     }
                 }
                 
@@ -8719,6 +8822,9 @@
                     tutorialBtn.textContent = 'Continue';
                 }
                 showElement('tutorialOverlay');
+            } else if (tutorialPressPromptTile) {
+                tutorialPressPromptTile.tutorialPressPromptShown = true;
+                showTutorialPressPrompt(tutorialPressPromptTile.column);
             }
             
             // Draw
@@ -8778,7 +8884,7 @@
                 return;
             }
 
-            if (gameState.state === 'playing' && gameState.tutorialMode && gameState.tutorialOverlayActive && (e.code === 'Space' || e.keyCode === 32)) {
+            if (gameState.state === 'playing' && gameState.tutorialMode && gameState.tutorialOverlayActive && !gameState.tutorialPressPromptActive && (e.code === 'Space' || e.keyCode === 32)) {
                 e.preventDefault();
                 continueTutorial();
                 return;
