@@ -1261,6 +1261,7 @@
         let menuBgmAudio = null;
         let menuBgmTrackIndex = -1;
         let tutorialShopGuidePending = false;
+        let tutorialShopGuideActive = false;
 
         const instrumentPreviewState = {
             cache: {},
@@ -6156,6 +6157,7 @@
 
             if (tutorialShopGuidePending) {
                 tutorialShopGuidePending = false;
+                tutorialShopGuideActive = true;
                 setTutorialShopHighlight(false);
                 const tutorialText = document.getElementById('tutorialText');
                 if (tutorialText) {
@@ -6189,6 +6191,30 @@
         function closeShop() {
             closeLuckyBoxModal();
             hideElement('shopOverlay');
+
+            if (tutorialShopGuideActive) {
+                tutorialShopGuideActive = false;
+                setTutorialShopHighlight(false);
+                showMenu();
+
+                const tutorialText = document.getElementById('tutorialText');
+                if (tutorialText) {
+                    tutorialText.innerHTML = `
+                        <h2 style="color: #00ff88; margin-bottom: 12px;">Tutorial Complete</h2>
+                        <p style="margin-top: 10px;">Nice work. You finished the tutorial flow.</p>
+                        <p style="margin-top: 10px;">You are now back in the main menu.</p>
+                    `;
+                }
+                const tutorialBtn = document.querySelector('#tutorialOverlay button');
+                if (tutorialBtn) {
+                    tutorialBtn.style.display = '';
+                    tutorialBtn.disabled = false;
+                    tutorialBtn.textContent = 'Close';
+                }
+                showElement('tutorialOverlay');
+                return;
+            }
+
             if (!isElementVisible('menuOverlay')) {
                 setTutorialShopHighlight(false);
             }
